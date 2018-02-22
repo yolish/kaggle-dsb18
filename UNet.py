@@ -1,16 +1,16 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+import math
 
 # based on the paper: 'U-Net convolutional networks for biomedical image segmentation'
-def init_weights_to_unit_var(module):
-    pass
+
 class ConvRelu(nn.Module):
-    def __init__(self, n_in_channels, n_out_channels, filter_size, padding):
+    def __init__(self, n_in_channels, n_out_channels, kernel_size, padding):
         # in the original paper this padding=0
         super(ConvRelu, self).__init__()
         self.operation = nn.Sequential(
-            nn.Conv2d(n_in_channels, n_out_channels, filter_size, padding=padding),
+            nn.Conv2d(n_in_channels, n_out_channels, kernel_size, padding=padding),
             nn.ReLU(inplace=True),
         )
 
@@ -19,11 +19,11 @@ class ConvRelu(nn.Module):
         return output
 
 class ConvReluSeq(nn.Module):
-    def __init__(self, n_in_channels, n_out_channels, n_components=2, filter_size=3, padding=1):
+    def __init__(self, n_in_channels, n_out_channels, n_components=2, kernel_size=3, padding=1):
         super(ConvReluSeq, self).__init__()
-        components = [ConvRelu(n_in_channels, n_out_channels, filter_size, padding)]
+        components = [ConvRelu(n_in_channels, n_out_channels, kernel_size, padding)]
         for i in xrange(1,n_components):
-            components.append(ConvRelu(n_out_channels, n_out_channels, filter_size, padding))
+            components.append(ConvRelu(n_out_channels, n_out_channels, kernel_size, padding))
         self.operation = nn.Sequential(*components)
 
     def forward(self, conv_relu_input):
@@ -31,9 +31,9 @@ class ConvReluSeq(nn.Module):
         return output
 
 class UpConvWithCopyCrop(nn.Module):
-    def __init__(self, n_in_channels, n_out_channels, filter_size=2, stride=2):
+    def __init__(self, n_in_channels, n_out_channels, kernel_size=2, stride=2):
         super(UpConvWithCopyCrop, self).__init__()
-        self.up = nn.ConvTranspose2d(n_in_channels, n_out_channels, filter_size, stride=stride)
+        self.up = nn.ConvTranspose2d(n_in_channels, n_out_channels, kernel_size, stride=stride)
 
     def forward(self, up_conv_input, copy_crop_input):
         up_conv_output = self.up(up_conv_input)
@@ -47,10 +47,10 @@ class UpConvWithCopyCrop(nn.Module):
         return output
 
 class UNet(nn.Module):
-    def __init__(self, n_in_channels, n_classes, init_weights = True):
+    def __init__(self, n_in_channels, n_classes, init_weights=True):
         #operations for the contracting path
         super(UNet, self).__init__()
-        self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64, filter_size=3,
+        self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64, kernel_size=3,
                                                     n_components=2, padding=1)# a sequence of 3X3 conv                                                                                         # followed by Relu (default params)
         self.conv_relu_seq_contract_2 = ConvReluSeq(64, 128)
         self.conv_relu_seq_contract_3 = ConvReluSeq(128, 256)
@@ -59,7 +59,7 @@ class UNet(nn.Module):
         self.max_pool = nn.MaxPool2d(2)  # stride = 2
 
         # operations for the expansive path
-        self.up_conv_with_copy_crop_1 = UpConvWithCopyCrop(1024, 512, filter_size=2, stride=2)
+        self.up_conv_with_copy_crop_1 = UpConvWithCopyCrop(1024, 512, kernel_size=2, stride=2)
         self.conv_relu_seq_expan_1= ConvReluSeq(1024, 512)
         self.up_conv_with_copy_crop_2 = UpConvWithCopyCrop(512, 256)
         self.conv_relu_seq_expan_2 = ConvReluSeq(512, 256)
@@ -73,17 +73,15 @@ class UNet(nn.Module):
             self.init_modules_weights()
 
     def init_modules_weights(self):
-        for m in self.modules:
-            print(m)
-            '''
-            if m.is_instance_of(nn.Conv2d):
-                pass
-            else:
-                m.init_modules_weights()
-            '''
-
-
-
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+                #init weights to have approximate;y unit variance by drawing from a normal dist
+                # with mean 0 and std sqrt(2/n), where n = filter size x n-incoming_channels
+                filter_size = m.kernel_size[0] * m.kernel_size[1]
+                n = filter_size * m.in_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def forward(self, input):
         # contracting path
