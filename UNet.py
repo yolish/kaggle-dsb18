@@ -18,7 +18,6 @@ class ConvRelu(nn.Module):
 
 class ConvReluSeq(nn.Module):
     def __init__(self, n_in_channels, n_out_channels, n_components=2, filter_size=3, padding=1):
-        # in the original paper this padding=0
         super(ConvReluSeq, self).__init__()
         components = [ConvRelu(n_in_channels, n_out_channels, filter_size, padding)]
         for i in xrange(1,n_components):
@@ -49,7 +48,8 @@ class UNet(nn.Module):
     def __init__(self, n_in_channels, n_classes):
         #operations for the contracting path
         super(UNet, self).__init__()
-        self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64, filter_size=3, n_components=2) # a sequence of 3X3 conv                                                                                         # followed by Relu (default params)
+        self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64, filter_size=3,
+                                                    n_components=2, padding=1)# a sequence of 3X3 conv                                                                                         # followed by Relu (default params)
         self.conv_relu_seq_contract_2 = ConvReluSeq(64, 128)
         self.conv_relu_seq_contract_3 = ConvReluSeq(128, 256)
         self.conv_relu_seq_contract_4 = ConvReluSeq(256, 512)
@@ -65,7 +65,7 @@ class UNet(nn.Module):
         self.conv_relu_seq_expan_3 = ConvReluSeq(256, 128)
         self.up_conv_with_copy_crop_4 = UpConvWithCopyCrop(128, 64)
         self.conv_relu_seq_expan_4 = ConvReluSeq(128, 64)
-        self.out_conv = nn.Conv2d(64, n_classes, 3)
+        self.out_conv = nn.Conv2d(64, n_classes, 3, padding=1)
 
 
     def forward(self, input):
