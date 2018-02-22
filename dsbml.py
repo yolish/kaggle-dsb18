@@ -114,11 +114,11 @@ def batch_collate(batch):
     return {key: default_collate([d[key] for d in batch]) for key in batch[0] if key in keys}
 
 # for train we do data augmentation as part of the transforms calls
-def train(dataset, n_epochs = 1, lr = 1e-04, weight_decay = 2e-05, momentum = 0.9, batch_size = 2):
+def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
     # assign the transformations
     dataset.transform = dsbaugment.train_transform
-    #train_loader = DataLoader(dataset, batch_size=batch_size,
-    #                          shuffle=True, num_workers=1, collate_fn=batch_collate)
+    train_loader = DataLoader(dataset, batch_size=batch_size,
+                             shuffle=True, num_workers=8, collate_fn=batch_collate)
 
     # create the model
     unet = UNet(3,1)
@@ -134,15 +134,10 @@ def train(dataset, n_epochs = 1, lr = 1e-04, weight_decay = 2e-05, momentum = 0.
     verbose_freq = 5
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         running_loss = 0.0
-        #for i, sample_batched in enumerate(train_loader):
-        indices = np.arange(0, len(dataset), batch_size)
-        np.random.shuffle(indices)
-        k = 0
-        for i in indices:
+        for i, sample_batched in enumerate(train_loader):
+
             # get the inputs
             start_time = time.time()
-            j = min(len(dataset), (i+batch_size))
-            sample_batched = batch_collate([dataset[i] for i in xrange(i, j)])
 
 
             imgs = sample_batched.get('img')

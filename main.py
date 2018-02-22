@@ -8,6 +8,8 @@ from UNet import UNet
 import random
 import numpy as np
 import dsbaugment
+import json
+import sys
 #TODO architecture, run e2e
 #TODO optimizer, weight init., update loss based on paper, update architecture based on paper
 #TODO fix seeds
@@ -17,15 +19,22 @@ import dsbaugment
 
 if __name__ == "__main__":
     # general parameters
-    dsb_data_path = "/home/yoli/kaggle_dsb18/data"
-    dsb_output_path = "/home/yoli/kaggle_dsb18/predictions"
-    stage = "stage1"
-    sanity_basic = True
-    sanity_augment = True
+    config_filename = sys.argv[1]
+    with open(config_filename) as json_config_file:
+        config = json.load(json_config_file)
 
-    visualize = True
-    model_filename = None
-    learn_and_predict = False
+    paths_config = config.get("paths")
+    dsb_data_path = paths_config.get("input_path")
+    dsb_output_path = paths_config.get("input_path")
+
+    actions_config = config.get("actions")
+    sanity_basic = actions_config.get("sanity_basic")
+    sanity_augment = actions_config.get("sanity_augment")
+    visualize = actions_config.get("visualize")
+    learn_and_predict = actions_config.get("learn_and_predict")
+
+    misc_config = config.get("misc")
+    stage = misc_config.get("stage")
 
     # set seeds
 
@@ -50,8 +59,7 @@ if __name__ == "__main__":
 
     if sanity_basic:
         print("performing a basic sanity check")
-        if visualize:
-            dsbutils.plot_imgs(train_dataset, 6, (17, 22))
+        dsbutils.plot_imgs(train_dataset, 6, (17, 22))
         n_imgs = 3
         selected_idx = random.sample(range(len(train_dataset)), n_imgs)
         for img_idx in selected_idx:
@@ -107,6 +115,7 @@ if __name__ == "__main__":
     if learn_and_predict:
         unet = None
 
+        model_filename = None
         n_epochs = 2
         lr = 1e-04
         weight_decay = 2e-05
