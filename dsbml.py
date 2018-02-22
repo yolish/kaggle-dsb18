@@ -144,9 +144,9 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
             masks = sample_batched.get('binary_mask')
             #borders = sample_batched.get('borders')
             #weights = dsbaugment.compute_weight_map_from_borders(borders)
-
             # wrap them in Variable
             imgs, masks = Variable(imgs), Variable(masks)
+
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -169,9 +169,7 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
             if i % verbose_freq == 0:
                 print('running loss in epoch {}, batch{} is {}'.format(epoch + 1, i + 1, running_loss / verbose_freq))
 
-            if k > -1:
-                break
-            k = k + 1
+
     return unet
 
 
