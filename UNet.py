@@ -3,6 +3,8 @@ import torch.nn.functional as F
 import torch
 
 # based on the paper: 'U-Net convolutional networks for biomedical image segmentation'
+def init_weights_to_unit_var(module):
+    pass
 class ConvRelu(nn.Module):
     def __init__(self, n_in_channels, n_out_channels, filter_size, padding):
         # in the original paper this padding=0
@@ -45,7 +47,7 @@ class UpConvWithCopyCrop(nn.Module):
         return output
 
 class UNet(nn.Module):
-    def __init__(self, n_in_channels, n_classes):
+    def __init__(self, n_in_channels, n_classes, init_weights = True):
         #operations for the contracting path
         super(UNet, self).__init__()
         self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64, filter_size=3,
@@ -66,6 +68,21 @@ class UNet(nn.Module):
         self.up_conv_with_copy_crop_4 = UpConvWithCopyCrop(128, 64)
         self.conv_relu_seq_expan_4 = ConvReluSeq(128, 64)
         self.out_conv = nn.Conv2d(64, n_classes, 3, padding=1)
+
+        if init_weights:
+            self.init_modules_weights()
+
+    def init_modules_weights(self):
+        for m in self.modules:
+            print(m)
+            '''
+            if m.is_instance_of(nn.Conv2d):
+                pass
+            else:
+                m.init_modules_weights()
+            '''
+
+
 
 
     def forward(self, input):

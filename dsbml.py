@@ -164,6 +164,7 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
             print("completed backward")
             optimizer.step()
             print("batch completed in {}".format(time.time()-start_time))
+            break
 
             # print statistics
             #running_loss += loss.data[0]

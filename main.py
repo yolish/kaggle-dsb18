@@ -48,7 +48,7 @@ if __name__ == "__main__":
     #print(imgs_details.sample(3))
 
     action = "creating train and validation datasets"
-    validation_frac = 0.1
+    validation_frac = 0.95
     time = dsbutils.start_action(action)
     labels_file = os.path.join(dsb_data_path, '{}_train_labels.csv'.format(stage))
     train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         lr = 1e-04
         weight_decay = 2e-05
         momentum = 0.9
-        batch_size = 4
+        batch_size = 2
 
         hyper_params = {'st':stage, 'lr':lr, 'wd':weight_decay,
                         'mm': momentum, 'bs':batch_size, 'epc':n_epochs}
@@ -134,6 +134,7 @@ if __name__ == "__main__":
 
             dsbutils.complete_action(action, time)
 
+'''
             action = "making predictions for the validation set"
             time = dsbutils.start_action(action)
             predictions, examples = dsbml.test(unet, valid_dataset)
@@ -188,5 +189,5 @@ if __name__ == "__main__":
         submission_df.to_csv(submission_filename)
         print("predictions on tess set written to: {}".format(submission_filename))
         dsbutils.complete_action(action, time)
-
+'''
 
