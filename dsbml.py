@@ -133,7 +133,7 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
     #optimizer = torch.optim.Adam(unet.parameters(), lr=lr)
     verbose_freq = 5
     for epoch in range(n_epochs):  # loop over the dataset multiple times
-        running_loss = 0.0
+        #running_loss = 0.0
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
@@ -164,11 +164,12 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
             print("completed backward")
             optimizer.step()
             print("batch completed in {}".format(time.time()-start_time))
-            # print statistics
-            running_loss += loss.data[0]
-            if i % verbose_freq == 0:
-                print('running loss in epoch {}, batch{} is {}'.format(epoch + 1, i + 1, running_loss / verbose_freq))
 
+            # print statistics
+            #running_loss += loss.data[0]
+            #if i % verbose_freq == 0:
+                #print('running loss in epoch {}, batch{} is {}'.format(epoch + 1, i + 1, running_loss / verbose_freq))
+                #running_loss = 0.0
 
     return unet
 

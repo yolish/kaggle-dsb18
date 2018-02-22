@@ -63,6 +63,11 @@ class To1Ch(object):
     def __call__(self, img, channel = 0):
         return img[:,:,channel][:,:,None]
 
+class Binarize(object):
+    def __call__(self, img):
+        img[img > 0.5] = 1.0
+        img[img < 1.0] = 0.0
+        return img
 
 class ElasticTransform(object):
     '''
@@ -73,7 +78,7 @@ class ElasticTransform(object):
     alpha: scaling facor - positive float giving the intensity of the transformation. Larger alphas require larger sigmas
     default values take from the paper
     '''
-    def __init__(self, sigma=2.0, alpha=17.0):
+    def __init__(self, sigma=4.0, alpha=34.0):
         '''
 
         :param sigma: positive floaf giving the elasticity of the transformation
@@ -105,7 +110,10 @@ class ElasticTransform(object):
 
         else:
             [deformed_img, deformed_mask, deformed_borders] = self.__elastic_deformation__([img, mask, borders])
-
+            #deformed_mask = deformed_mask.astype(np.uint8)
+            #self.dichotom(deformed_mask, 255, 255)
+            #deformed_borders.astype(np.uint8)
+            #self.dichotom(deformed_borders, 255, 255)
         return deformed_img.astype(np.uint8), deformed_mask.astype(np.uint8), deformed_borders.astype(np.uint8)
 
 
@@ -141,6 +149,16 @@ class ElasticTransform(object):
         if len(img.shape) == 2:
             img[img > thr] = v1
             img[img < v1] = v0
+        else:
+            height, width, channel = img.shape
+            for i in xrange(height):
+                for j in xrange(width):
+                    for k in xrange(channel):
+                        if img[i, j, k] == thr:
+                            img[i, j, :] = v1
+                            break
+            img[img < v1] = v0
+
 
 def compute_weight_map_from_borders(borders, ):
     weight_map = borders > 0
@@ -213,7 +231,10 @@ train_transform = JointCompose(# transformations
     # swap color axis because
     # numpy image: H x W x C
     # torch image: C X H X W
-    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS)]
+    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+    # ensure mask and borders are binarized
+    TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
+    TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 )
 
 test_transform = JointCompose(
@@ -227,7 +248,9 @@ test_transform = JointCompose(
                   BORDER_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   MASK_ONLY_TRANSFORM),
-    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS)]
+    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
+     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 )
 
 toy_transform = JointCompose(
@@ -244,8 +267,10 @@ toy_transform = JointCompose(
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   BORDER_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
-                  MASK_ONLY_TRANSFORM),
-    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS)]
+                 MASK_ONLY_TRANSFORM),
+    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+    TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
+    TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 )
 
 

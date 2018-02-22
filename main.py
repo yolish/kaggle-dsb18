@@ -77,7 +77,7 @@ if __name__ == "__main__":
         import matplotlib.pyplot as plt
         print("performing an augmentation sanity check")
         n_imgs = 1
-        selected_idx = random.sample(range(len(train_dataset)), n_imgs)
+        selected_idx = [0]#random.sample(range(len(train_dataset)), n_imgs)
         for img_idx in selected_idx:
             sample = train_dataset[img_idx]
             img_id = sample.get('id')
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         lr = 1e-04
         weight_decay = 2e-05
         momentum = 0.9
-        batch_size = 2
+        batch_size = 4
 
         hyper_params = {'st':stage, 'lr':lr, 'wd':weight_decay,
                         'mm': momentum, 'bs':batch_size, 'epc':n_epochs}
