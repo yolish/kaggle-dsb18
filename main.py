@@ -120,7 +120,7 @@ if __name__ == "__main__":
         lr = 1e-04
         weight_decay = 2e-05
         momentum = 0.9
-        batch_size = 4
+        batch_size = 2
 
         hyper_params = {'st':stage, 'lr':lr, 'wd':weight_decay,
                         'mm': momentum, 'bs':batch_size, 'epc':n_epochs}
@@ -129,9 +129,9 @@ if __name__ == "__main__":
             #TODO: cross validation on hyper-params
             action = "training a UNet"
             time = dsbutils.start_action(action)
-            unet = dsbml.train(train_dataset, n_epochs= n_epochs, lr=lr,
-                               weight_decay=weight_decay, batch_size=batch_size,
-                               momentum=momentum)
+
+            unet = dsbml.train(train_dataset, n_epochs, batch_size, lr, weight_decay, momentum)
+
             dsbutils.complete_action(action, time)
 
             action = "making predictions for the validation set"
@@ -156,9 +156,7 @@ if __name__ == "__main__":
 
             action = "training a UNet on the full train dataset"
             time = dsbutils.start_action(action)
-            unet = dsbml.train(train_dataset, n_epochs= n_epochs, lr=lr,
-                               weight_decay=weight_decay, batch_size=batch_size,
-                               momentum=momentum)
+            unet = dsbml.train(train_dataset, n_epochs, batch_size, lr, weight_decay, momentum)
             # save the model
             model_filename = dsbutils.generate_filename(dsb_output_path, hyper_params, 'pth')
             torch.save(unet.state_dict(), model_filename)
