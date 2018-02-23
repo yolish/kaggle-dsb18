@@ -1,0 +1,11 @@
+{ "paths":{"input_path":"/home/yoli/kaggle_dsb18/data",
+             "output_path":"/home/yoli/kaggle_dsb18/src/predictions"
+            },
+   "actions":{"sanity_basic":true,
+              "sanity_augment":true,
+              "visualize":true,
+              "seed":false
+             },   
+   "misc": {"stage":"stage1"}
+}
+   
