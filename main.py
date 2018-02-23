@@ -1,21 +1,17 @@
 from NucleiDataset import NucleiDataset
-
 import dsbutils
 import dsbml
 import os
 import torch
 from UNet import UNet
 import random
-import numpy as np
 import dsbaugment
 import json
 import sys
-#TODO architecture, run e2e
-#TODO optimizer, weight init., update loss based on paper, update architecture based on paper
-#TODO fix seeds
-#TODO introduce loss with more weights for pixels in the boundaries: 1. generate masks with boundaries 2. generate weight maps
-#TODO debug loss
-#TODO cross validation;  sanity, save model between epochs?
+import datetime
+
+
+#TODO gpu, debug e2e, optimizer, training optimization, fix seeds,
 
 if __name__ == "__main__":
     # general parameters
@@ -25,22 +21,19 @@ if __name__ == "__main__":
 
     paths_config = config.get("paths")
     dsb_data_path = paths_config.get("input_path")
-    dsb_output_path = paths_config.get("input_path")
+    dsb_output_path = paths_config.get("output_path")
 
     actions_config = config.get("actions")
     sanity_basic = actions_config.get("sanity_basic")
     sanity_augment = actions_config.get("sanity_augment")
     visualize = actions_config.get("visualize")
-    learn_and_predict = actions_config.get("learn_and_predict")
 
+    train_config = config.get("train")
+    test_config = config.get("test")
     misc_config = config.get("misc")
     stage = misc_config.get("stage")
 
     # set seeds
-
-
-
-
     action = "collecting images details"
     time = dsbutils.start_action(action)
     imgs_details = dsbutils.collect_imgs_details(dsb_data_path, stage)
@@ -94,7 +87,7 @@ if __name__ == "__main__":
             plt.imshow(borders)
             plt.show()
 
-        train_dataset.transform = dsbaugment.toy_transform
+        train_dataset.transform = dsbaugment.tramsformations.get("toy_transform")
         for img_idx in selected_idx:
             sample = train_dataset[img_idx]
             img_id = sample.get('id')
@@ -113,43 +106,40 @@ if __name__ == "__main__":
             plt.show()
 
 
+    evaluate = True
+    test = False
+    postprocess = False
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
+    unet = None
+    if test_config is not None:
+        evaluate = test_config.get("eval")
+        test = test_config.get("test")
+        postprocess = test_config.get("postprocess")
+        model_filename = test_config.get("model")
 
 
-    if learn_and_predict:
-        unet = None
+    if train_config is not None:
+        model_filename = train_config.get("model")
+        batch_size = train_config.get("batch_size")  # 4
+        n_epochs = train_config.get("n_epochs")#2
+        lr = train_config.get("lr")#1e-04
+        weight_decay = train_config.get("weight_decay")#2e-05
+        momentum = train_config.get("momentum")#0.9
+        init_weights = train_config.get("init_weights")
+        weighted_loss = train_config.get("weighted_loss")
+        use_gpu = train_config.get("use_gpu")
+        train_full = train_config.get("train_full")
+        save_model = train_config.get("save_model")
+        transformation_name = train_config.get("transformation")
+        transformation = dsbaugment.transformations.get(transformation_name)
 
-        model_filename = None
-        n_epochs = 2
-        lr = 1e-04
-        weight_decay = 2e-05
-        momentum = 0.9
-        batch_size = 2
-
-        hyper_params = {'st':stage, 'lr':lr, 'wd':weight_decay,
-                        'mm': momentum, 'bs':batch_size, 'epc':n_epochs}
 
         if model_filename is None:
-            #TODO: cross validation on hyper-params
             action = "training a UNet"
             time = dsbutils.start_action(action)
-
-            unet = dsbml.train(train_dataset, n_epochs, batch_size, lr, weight_decay, momentum)
-
+            unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                               lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu)
             dsbutils.complete_action(action, time)
-
-'''
-            action = "making predictions for the validation set"
-            time = dsbutils.start_action(action)
-            predictions, examples = dsbml.test(unet, valid_dataset)
-            dsbutils.complete_action(action, time)
-
-            action = "evaluating prediction"
-            mean_avg_precision_iou = dsbml.evaluate(predictions, valid_dataset, examples=examples)
-            print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
-            dsbutils.complete_action(action, time)
-            if visualize:
-                # visually evaluate a few images by comparing images and masks
-                dsbutils.plot_predictions(examples, (7, 12))
 
             # train the model on the full train set (train + validation)
             action = "creating the full train dataset"
@@ -162,15 +152,35 @@ if __name__ == "__main__":
             time = dsbutils.start_action(action)
             unet = dsbml.train(train_dataset, n_epochs, batch_size, lr, weight_decay, momentum)
             # save the model
-            model_filename = dsbutils.generate_filename(dsb_output_path, hyper_params, 'pth')
+            model_filename = dsb_output_path + "model_" + timestamp + ".pth"
             torch.save(unet.state_dict(), model_filename)
             print("model written to to: {}".format(model_filename))
-
+            model_metatdate_filename = dsb_output_path + "model_config_" + timestamp + ".txt"
+            with open(model_metatdate_filename, 'w') as f:
+                f.write(json.dumps({"model_config":train_config}))
+            print("model metadat written to to: {}".format(model_metatdate_filename))
             dsbutils.complete_action(action, time)
-        else:
-            unet = UNet()
-            unet = unet.load_state_dict(torch.load(model_filename))
 
+
+    if (evaluate or test) and unet is None:
+        unet = UNet()
+        unet = unet.load_state_dict(torch.load(model_filename))
+
+    if evaluate:
+        action = "making predictions for the validation set"
+        time = dsbutils.start_action(action)
+        predictions, examples = dsbml.test(unet, valid_dataset, postprocess)
+        dsbutils.complete_action(action, time)
+
+        action = "evaluating prediction"
+        mean_avg_precision_iou = dsbml.evaluate(predictions, valid_dataset, examples=examples)
+        print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
+        dsbutils.complete_action(action, time)
+        if visualize:
+            # visually evaluate a few images by comparing images and masks
+            dsbutils.plot_predictions(examples, (7, 12))
+
+    if test:
         action = "creating the test set"
         time = dsbutils.start_action(action)
         test_dataset = NucleiDataset('test', imgs_df=imgs_details)
@@ -179,7 +189,7 @@ if __name__ == "__main__":
 
         action = "making predictions for the test set"
         time = dsbutils.start_action(action)
-        predictions, examples = dsbml.test(unet, test_dataset)
+        predictions, examples = dsbml.test(unet, test_dataset, postprocess)
         dsbutils.complete_action(action, time)
         # visually evaluate a few images by comparing images and masks
         dsbutils.plot_predictions(examples, (7, 12))
@@ -187,10 +197,9 @@ if __name__ == "__main__":
         action = "writing the predictions to submission format"
         time = dsbutils.start_action(action)
         submission_df = dsbutils.to_submission_df(predictions)
-        #TODO: submission_filename - add hyper paroameters here or a time stamp?
-        submission_filename = dsbutils.generate_filename(dsb_output_path, hyper_params, 'csv')
+        submission_filename = dsb_output_path + "model_predictions_postprocess_" +str(postprocess) +"_" + timestamp + ".csv"
         submission_df.to_csv(submission_filename)
         print("predictions on tess set written to: {}".format(submission_filename))
         dsbutils.complete_action(action, time)
-'''
+
 

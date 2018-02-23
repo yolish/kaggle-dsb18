@@ -195,10 +195,8 @@ def clean_mask(mask, thresh=0.5):
     mask = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
     return mask
 
-
-
-
-train_transform = JointCompose(# transformations
+transformations = {
+"train_transform_elastic":JointCompose(# transformations
     [
     # turn mask into 3D RGB-Like for PIL and tensor transformation
     TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
@@ -231,9 +229,27 @@ train_transform = JointCompose(# transformations
     # ensure mask and borders are binarized
     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
-)
-
-test_transform = JointCompose(
+),
+"train_transform_basic":JointCompose(
+    [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+    TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
+    TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
+    TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
+    TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
+     # color jittering (image only)
+    TransformSpec(transforms.ColorJitter(brightness=0.5, contrast=0.5),
+                   IMG_ONLY_TRANSFORM, prob=0.5),
+    TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
+                  IMG_ONLY_TRANSFORM),
+    TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
+                  BORDER_ONLY_TRANSFORM),
+    TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
+                  MASK_ONLY_TRANSFORM),
+    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
+     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
+),
+"test_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
@@ -247,9 +263,8 @@ test_transform = JointCompose(
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
-)
-
-toy_transform = JointCompose(
+),
+"toy_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
     TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=1.0),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
@@ -268,6 +283,7 @@ toy_transform = JointCompose(
     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 )
+}
 
 
 

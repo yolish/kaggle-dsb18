@@ -228,15 +228,6 @@ def to_submission_df(predictions):
             s = pd.Series({'ImageId': img_id, 'EncodedPixels': format_rle(rle)})
             df = df.append(s, ignore_index=True)
     return df
-
-def generate_filename(path, args, suffix):
-    filename = path + "dsb18_"
-    a = []
-    for name, val in args.items():
-        a.append(name)
-        a.append(str(val))
-    filename = filename + '_'.join(a) + '.' + suffix
-    return  filename
 #endregion
 
 #region testing and logging

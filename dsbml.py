@@ -144,19 +144,17 @@ def batch_collate(batch):
 
 
 # for train we do data augmentation as part of the transforms calls
-def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum, weighted_loss):
+def train(dataset, transformation, n_epochs, batch_size,
+                               lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu):
     # assign the transformations
-    dataset.transform = dsbaugment.train_transform
+    dataset.transform = transformation
     train_loader = DataLoader(dataset, batch_size=batch_size,
                              shuffle=True, num_workers=8, collate_fn=batch_collate)
 
     # create the model
-    unet = UNet(3,1)
+    unet = UNet(3,1, init_weights=init_weights)
 
     # define the loss criterion and the optimizer
-    #TODO: weight initialization
-    #TODO: weight of boundary segmentation
-    #TODO: different optimizer ?
     criterion = StableBCELoss()
     optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                 weight_decay=weight_decay)
@@ -168,8 +166,6 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum, weighted_lo
 
             # get the inputs
             start_time = time.time()
-
-
             imgs = sample_batched.get('img')
             masks = sample_batched.get('binary_mask')
             weight_maps = sample_batched.get('weight_map')
@@ -208,7 +204,7 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum, weighted_lo
 
 # Note on data augmentation: for test we only do resizing and we do it inside the test loop
 # i.e. not transforms added to the dataset
-def test(unet, dataset, n_masks_to_collect=6, clean_mask=False):
+def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
 
     dataset.mask_transform = dsbaugment.test_transform
 
@@ -226,7 +222,7 @@ def test(unet, dataset, n_masks_to_collect=6, clean_mask=False):
         # predicted mask is now a numpy image again
 
         # apply computer vision to clean the mask (disabled by default)
-        if clean_mask:
+        if postprocess:
             predicted_mask = dsbaugment.clean_mask(predicted_mask)
 
         pred_rles = dsbutils.rles_from_mask(predicted_mask)
