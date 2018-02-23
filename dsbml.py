@@ -153,15 +153,17 @@ def train(dataset, transformation, n_epochs, batch_size,
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
+    if use_gpu:
+        unet.cuda()
 
     # define the loss criterion and the optimizer
     criterion = StableBCELoss()
     optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                 weight_decay=weight_decay)
     #optimizer = torch.optim.Adam(unet.parameters(), lr=lr)
-    verbose_freq = 5
+
     for epoch in range(n_epochs):  # loop over the dataset multiple times
-        #running_loss = 0.0
+        running_loss = 0.0
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
@@ -169,9 +171,15 @@ def train(dataset, transformation, n_epochs, batch_size,
             imgs = sample_batched.get('img')
             masks = sample_batched.get('binary_mask')
             weight_maps = sample_batched.get('weight_map')
-            imgs, masks = Variable(imgs), Variable(masks, requires_grad=False)
+            if use_gpu:
+                imgs, masks = Variable(imgs.cuda()), Variable(masks.cuda())
+            else:
+                imgs, masks = Variable(imgs), Variable(masks)
             if weighted_loss:
-                weight_maps = Variable(weight_maps, requires_grad=False)
+                if use_gpu:
+                    weight_maps = Variable(weight_maps.cuda())
+                else:
+                    weight_maps = Variable(weight_maps)
             else:
                 weight_maps = None
 
@@ -179,25 +187,17 @@ def train(dataset, transformation, n_epochs, batch_size,
             optimizer.zero_grad()
 
             # forward + backward + optimize
-
-            print("start forward")
             outputs = unet(imgs)
-            print("end forward")
-
             loss = criterion(outputs, masks, weight=weight_maps )
-            print("loss is: {}".format(loss.data[0]))
-
             loss.backward()
-            print("completed backward")
             optimizer.step()
-            print("batch completed in {}".format(time.time()-start_time))
-            break
+
 
             # print statistics
-            #running_loss += loss.data[0]
-            #if i % verbose_freq == 0:
-                #print('running loss in epoch {}, batch{} is {}'.format(epoch + 1, i + 1, running_loss / verbose_freq))
-                #running_loss = 0.0
+            running_loss += loss.data[0]
+            if i % 15 == 14: # print every 15 batches
+                print('running loss in epoch {}, batch{} is {}'.format(epoch + 1, i + 1, running_loss / 15))
+                running_loss = 0.0
 
     return unet
 
