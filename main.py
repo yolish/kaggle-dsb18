@@ -12,7 +12,7 @@ import datetime
 import numpy as np
 import time
 
-#TODO  gpu once available, full documentation, training optimization, augmentation optimization
+#TODO  gpu once available, full documentation, training optimization, augmentation optimization, postprocessing
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
@@ -93,7 +93,6 @@ if __name__ == "__main__":
             plt.subplot(233)
             plt.imshow(borders)
 
-
             train_dataset.transform = dsbaugment.transformations.get("toy_transform")
             sample = train_dataset[img_idx]
             img_id = sample.get('id')
@@ -115,7 +114,6 @@ if __name__ == "__main__":
     evaluate = False
     test = False
     postprocess = False
-    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
     unet = None
     if test_config is not None:
         evaluate = test_config.get("eval")
@@ -123,29 +121,30 @@ if __name__ == "__main__":
         postprocess = test_config.get("postprocess")
         model_filename = test_config.get("model")
 
-
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
     if train_config is not None:
         model_filename = train_config.get("model")
-        batch_size = train_config.get("batch_size")  # 4
-        n_epochs = train_config.get("n_epochs")#2
-        lr = train_config.get("lr")#1e-04
-        weight_decay = train_config.get("weight_decay")#2e-05
-        momentum = train_config.get("momentum")#0.9
-        init_weights = train_config.get("init_weights")
-        weighted_loss = train_config.get("weighted_loss")
-        use_gpu = train_config.get("use_gpu")
-        train_full = train_config.get("train_full")
-        save_model = train_config.get("save_model")
-        transformation_name = train_config.get("transformation")
-        transformation = dsbaugment.transformations.get(transformation_name)
 
 
         if model_filename is None:
+            batch_size = train_config.get("batch_size")  # 4
+            n_epochs = train_config.get("n_epochs")  # 2
+            lr = train_config.get("lr")  # 1e-04
+            weight_decay = train_config.get("weight_decay")  # 2e-05
+            momentum = train_config.get("momentum")  # 0.9
+            init_weights = train_config.get("init_weights")
+            weighted_loss = train_config.get("weighted_loss")
+            use_gpu = train_config.get("use_gpu")
+            train_full = train_config.get("train_full")
+            save_model = train_config.get("save_model")
+            transformation_name = train_config.get("transformation")
+            transformation = dsbaugment.transformations.get(transformation_name)
+
             action = "training a UNet"
             start_time = dsbutils.start_action(action)
             unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu)
-            dsbutils.complete_action(action, time)
+            dsbutils.complete_action(action, start_time)
 
             # train the model on the full train set (train + validation)
             action = "creating the full train dataset"
@@ -164,11 +163,11 @@ if __name__ == "__main__":
                 model_filename = dsb_output_path + "model_" + timestamp + ".pth"
                 torch.save(unet.state_dict(), model_filename)
                 print("model written to to: {}".format(model_filename))
-                model_metatdate_filename = dsb_output_path + "model_config_" + timestamp + ".txt"
-                with open(model_metatdate_filename, 'w') as f:
+                model_metatdata_filename = dsb_output_path + "model_config_" + timestamp + ".txt"
+                with open(model_metatdata_filename, 'w') as f:
                     f.write(json.dumps({"model_config":train_config}))
-                print("model metadat written to to: {}".format(model_metatdate_filename))
-                dsbutils.complete_action(action, start_time)
+                print("model metadata written to to: {}".format(model_metatdata_filename))
+
 
 
     if (evaluate or test) and unet is None:

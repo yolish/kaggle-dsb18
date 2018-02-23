@@ -20,9 +20,16 @@
     "momentum": 0.9,
     "init_weights": true,
     "weighted_loss": false,
-    "use_gpu": false,
+    "use_gpu": true,
     "train_full": false,
     "save_model": true,
     "transformation": "train_transform_basic"
+  },
+  "test":
+  {
+    "eval":true,
+    "test":false,
+    "postprocess":false
   }
+
 }
