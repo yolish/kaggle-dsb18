@@ -12,7 +12,7 @@ import datetime
 import numpy as np
 import time
 
-#TODO  gpu once available, full documentation, training optimization
+#TODO  gpu once available, full documentation, training optimization, augmentation optimization
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
