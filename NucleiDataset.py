@@ -4,6 +4,7 @@ from skimage.io import imread
 from dsbutils import collect_dataset
 from dsbaugment import to_binary_mask
 from torch.utils.data import Dataset
+from dsbml import calc_expected_iou, try_add_weight_map
 
 
 class NucleiDataset(Dataset):
@@ -45,9 +46,14 @@ class NucleiDataset(Dataset):
             binary_mask, borders = to_binary_mask(mask)
             sample['binary_mask'] = binary_mask
             sample['borders'] = borders
+            sample['expected_iou'] = calc_expected_iou(mask, binary_mask)
+
 
         if self.transform is not None:
             sample = self.transform(sample)
+
+        try_add_weight_map(sample)
+
         return sample
 
     def split(self, frac, type, transform = None):

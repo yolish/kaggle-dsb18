@@ -48,7 +48,7 @@ if __name__ == "__main__":
     #print(imgs_details.sample(3))
 
     action = "creating train and validation datasets"
-    validation_frac = 0.95
+    validation_frac = 0.1
     time = dsbutils.start_action(action)
     labels_file = os.path.join(dsb_data_path, '{}_train_labels.csv'.format(stage))
     train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     if sanity_basic:
         print("performing a basic sanity check")
-        dsbutils.plot_imgs(train_dataset, 6, (17, 22))
+        dsbutils.plot_imgs(train_dataset, 6, (22, 27))
         n_imgs = 3
         selected_idx = random.sample(range(len(train_dataset)), n_imgs)
         for img_idx in selected_idx:
@@ -71,7 +71,7 @@ if __name__ == "__main__":
             rles_from_mask = dsbutils.get_rles_from_mask(mask, label_img=False)
             dsbutils.test_rle(rles_from_mask, rles_from_df)
             print("Avg precision IoU for img {} (using labelled): {}".format(img_id, dsbml.calc_avg_precision_iou(rles_from_mask,rles_from_df)))
-
+            print("Expected Avg precision IoU for img {}: {}".format(img_id, sample.get('expected_iou')))
 
     if sanity_augment:
         import matplotlib.pyplot as plt
@@ -84,6 +84,7 @@ if __name__ == "__main__":
             img = sample.get('img')
             mask = sample.get('binary_mask')
             borders = sample.get('borders')
+            weight_map = sample.get('weight_map')
             print("image and binary mask before transformation. Image shape: {}, mask shape: {}".format(img.shape,mask.shape))
             plt.subplot(131)
             plt.imshow(img)
@@ -100,6 +101,7 @@ if __name__ == "__main__":
             img = sample.get('img')
             mask = sample.get('binary_mask')
             borders = sample.get('borders')
+            weight_map = sample.get('weight_map')
             print("image and binary mask after transformation. Image shape: {}, mask shape: {}".format(img.shape,
                                                                                                         mask.shape))
             plt.subplot(131)
@@ -109,6 +111,7 @@ if __name__ == "__main__":
             plt.subplot(133)
             plt.imshow(dsbaugment.PIL_torch_to_numpy(borders), cmap='gist_gray')
             plt.show()
+
 
 
 

@@ -4,6 +4,7 @@ from skimage.measure import label
 import os
 from glob import glob
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 import time
 import random
@@ -52,17 +53,7 @@ def collect_dataset(imgs_df, dataset_type, labels_file = None):
     dataset = pd.DataFrame(dataset_rows)
     return dataset
 # endregion
-# swap color axis because
-        # numpy image: H x W x C
-        # torch image: C X H X W
-#region data processing (augmentation)
-def transform():
-    pass
 
-def reverse_transform():
-    pass
-
-#endregion
 
 #region visualization
 def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
@@ -73,11 +64,11 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
     :param fig_size: the size of the figure to plot
     :param plot_mask: whether to plot the mask (True by default), applied only if a mask is available
     '''
-    n_cols = 4
+    n_cols = 5
     if not plot_mask:
         n_cols = 1
     fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
-
+    norm = mpl.colors.Normalize(vmin = 1.0, vmax = 5.0)
     selected_idx = random.sample(range(len(dataset)), n_imgs)
     for i, img_idx in enumerate(selected_idx):
         sample = dataset[img_idx]
@@ -102,6 +93,12 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
             subplot.axis('off')
             if i == 0:
                 subplot.set_title('Borders')
+
+            subplot = axes[i][4]
+            subplot.imshow(sample.get('weight_map')[:,:,0], cmap='magma', norm=norm)
+            subplot.axis('off')
+            if i == 0:
+                subplot.set_title('Weight Map')
     plt.show()
 
 def plot_predicted_masks(samples, fig_size, plot_true_mask=True):

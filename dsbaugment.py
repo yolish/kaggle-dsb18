@@ -160,10 +160,6 @@ class ElasticTransform(object):
             img[img < v1] = v0
 
 
-def compute_weight_map_from_borders(borders, ):
-    weight_map = borders > 0
-    return(weight_map)
-
 
 def PIL_torch_to_numpy(img):
     img = np.transpose(img.numpy(), (1, 2, 0))

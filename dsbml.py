@@ -44,9 +44,11 @@ class StableBCELoss(nn.modules.Module):
     def __init__(self):
         super(StableBCELoss, self).__init__()
 
-    def forward(self, input, target):
+    def forward(self, input, target, weight=None):
         neg_abs = - input.abs()
         loss = input.clamp(min=0) - input * target + (1 + neg_abs.exp()).log()
+        if weight is not None:
+            loss = loss * weight
         return loss.mean()
 
 #endregion
@@ -95,13 +97,38 @@ def calc_avg_precision_iou(pred_rles, true_rles, thrs = np.arange(0.5, 1.0, 0.05
         avg_precision_iou = avg_precision_iou + precision_iou
     return avg_precision_iou/len(thrs)
 
+def calc_expected_iou(labelled_mask, binary_mask):
+    true_rles = dsbutils.get_rles_from_mask(labelled_mask, label_img=False)
+    pred_rles = dsbutils.get_rles_from_mask(binary_mask)
+    expected_iou = calc_avg_precision_iou(pred_rles, true_rles)
+    return expected_iou
 
+def try_add_weight_map(sample, w0=4.0):
+    '''
+
+    when the Iou is low, it means that it's hard to label the binary mask, becuase cells are touching
+    so we want the borders  to have more weight that all the other pixels
+    :param sample:
+    :param w0:
+    :return:
+    '''
+    expected_iou = sample.get('expected_iou')
+    borders = sample.get('borders')
+    if expected_iou is not None and borders is not None:
+        if isinstance(borders, np.ndarray):
+            weight_map = borders.astype(np.float64)
+        else:
+            weight_map = borders.clone()
+        weight_map[weight_map >= 1.0] = 1.0 + w0*(1-expected_iou)
+        weight_map[weight_map < 1.0] = 1.0
+        sample['weight_map'] = weight_map
 
 #endregion
 
-#region deep learning
-# train the model with the train set
-# things to consider: weight init., learning rate, optim, regularization,
+
+#regipp learning
+# trap model with the train set
+# thip consider: weight init., learning rate, optim, regularization,
 # params of nets, batch size, loss, weight matrix for segmentation
 # helping aids: pytorch tutorial + https://github.com/ycszen/pytorch-seg/blob/master/trainer.py/tester.py
 
@@ -110,11 +137,14 @@ def calc_avg_precision_iou(pred_rles, true_rles, thrs = np.arange(0.5, 1.0, 0.05
 #Note: for train we do data augmentation as part of the transform
 
 def batch_collate(batch):
-    keys = ('img', 'binary_mask', 'borders')
+    keys = ('img', 'binary_mask', 'expected_iou')
     return {key: default_collate([d[key] for d in batch]) for key in batch[0] if key in keys}
 
+
+
+
 # for train we do data augmentation as part of the transforms calls
-def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
+def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum, weighted_loss):
     # assign the transformations
     dataset.transform = dsbaugment.train_transform
     train_loader = DataLoader(dataset, batch_size=batch_size,
@@ -142,11 +172,12 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
 
             imgs = sample_batched.get('img')
             masks = sample_batched.get('binary_mask')
-            #borders = sample_batched.get('borders')
-            #weights = dsbaugment.compute_weight_map_from_borders(borders)
-            # wrap them in Variable
-            imgs, masks = Variable(imgs), Variable(masks)
-
+            weight_maps = sample_batched.get('weight_map')
+            imgs, masks = Variable(imgs), Variable(masks, requires_grad=False)
+            if weighted_loss:
+                weight_maps = Variable(weight_maps, requires_grad=False)
+            else:
+                weight_maps = None
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -157,7 +188,7 @@ def train(dataset, n_epochs, batch_size, lr, weight_decay, momentum):
             outputs = unet(imgs)
             print("end forward")
 
-            loss = criterion(outputs, masks)
+            loss = criterion(outputs, masks, weight=weight_maps )
             print("loss is: {}".format(loss.data[0]))
 
             loss.backward()
