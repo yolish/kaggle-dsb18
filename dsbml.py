@@ -214,7 +214,7 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
         # resize the mask and reverse the transformation
         img_id = sample.get('id')
         original_size = sample.get('size')
-        predicted_mask = dsbaugment.reverse_test_transform_for_mask(predicted_mask, original_size)
+        predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size)
         # predicted mask is now a numpy image again
         # apply computer vision to clean the mask (disabled by default)
         if postprocess:
@@ -225,7 +225,8 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
         # save a few examples for plotting
         mask = sample.get('labelled_mask') # can be None for the test set
         if i < n_masks_to_collect:
-            examples[img_id] = {img: img, 'labelled_mask': mask, 'predicted_mask': predicted_mask}
+            examples[img_id] = {'img': dsbaugment.reverse_test_transform(img.data[0].cpu(), original_size),
+                                'labelled_mask':mask, 'predicted_mask':predicted_mask}
         i = i + 1
     return predictions, examples
 

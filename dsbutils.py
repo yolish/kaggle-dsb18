@@ -111,26 +111,26 @@ def plot_predicted_masks(samples, fig_size, plot_true_mask=True):
         img = sample.get('img')
         predicted_mask = sample.get('predicted_mask')
         mask = sample.get('labelled_mask')
-        iou = sample.get('iou')
+        #iou = sample.get('iou') use
 
         subplot = axes[i][0]
         subplot.imshow(img)
         subplot.axis('off')
-        subplot.set_title('Input')
+        if i == 0:
+            subplot.set_title('Input')
 
         subplot = axes[i][1]
         subplot.imshow(predicted_mask, cmap='gist_gray')
         subplot.axis('off')
-        if iou is not None:
-            subplot.set_title('Prediction (MP-IoU: {})'.format(iou))
-        else:
+        if i == 0:
             subplot.set_title('Prediction')
 
         if plot_true_mask and mask is not None:
             subplot = axes[i][2]
             subplot.imshow(mask, cmap='magma')
             subplot.axis('off')
-            subplot.set_title('True mask')
+            if i == 0:
+                subplot.set_title('True mask')
 
 
     plt.show()

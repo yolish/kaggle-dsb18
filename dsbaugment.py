@@ -167,18 +167,18 @@ def PIL_torch_to_numpy(img):
         img = img[:,:,0]
     return img
 
-def reverse_test_transform_for_mask(mask, original_size):
+def reverse_test_transform(img, original_size):
     '''
     reverse the basic mask transformation
-    :param mask:
+    :param img:
     :param original_size: H X W X C of image
     :return:
     '''
     # resize the tenstor to the original size
     reverse_transform = transforms.Compose([transforms.ToPILImage(),
                                             transforms.Resize(original_size[:2]), transforms.ToTensor()])
-    mask = PIL_torch_to_numpy(reverse_transform(mask))
-    return mask
+    img = PIL_torch_to_numpy(reverse_transform(img))
+    return img
 
 def to_binary_mask(labelled_mask, with_borders = True):
     borders = None
