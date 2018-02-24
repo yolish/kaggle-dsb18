@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
             if save_model:
                 model_filename = dsb_output_path + "model_" + timestamp + ".pth"
-                torch.save(unet.state_dict(), model_filename)
+                torch.save(unet, model_filename)
                 print("model written to to: {}".format(model_filename))
                 model_metatdata_filename = dsb_output_path + "model_config_" + timestamp + ".txt"
                 with open(model_metatdata_filename, 'w') as f:
@@ -171,8 +171,7 @@ if __name__ == "__main__":
 
 
     if (evaluate or test) and unet is None:
-        unet = UNet()
-        unet = unet.load_state_dict(torch.load(model_filename))
+        unet = torch.load(model_filename)
 
     if evaluate:
         action = "making predictions for the validation set"
@@ -187,7 +186,7 @@ if __name__ == "__main__":
         dsbutils.complete_action(action, start_time)
         if visualize:
             # visually evaluate a few images by comparing images and masks
-            dsbutils.plot_predictions(examples, (7, 12))
+            dsbutils.plot_predicted_masks(examples, (7, 12))
 
     if test:
         action = "creating the test set"
@@ -202,7 +201,7 @@ if __name__ == "__main__":
         dsbutils.complete_action(action, start_time)
         # visually evaluate a few images by comparing images and masks
         if visualize:
-            dsbutils.plot_predictions(examples, (7, 12))
+            dsbutils.plot_predicted_masks(examples, (7, 12), plot_true_mask=False)
 
         action = "writing the predictions to submission format"
         start_time = dsbutils.start_action(action)
