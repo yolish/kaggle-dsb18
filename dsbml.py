@@ -137,11 +137,8 @@ def try_add_weight_map(sample, w0=4.0):
 #Note: for train we do data augmentation as part of the transform
 
 def batch_collate(batch):
-    keys = ('img', 'binary_mask', 'expected_iou')
-    return {key: default_collate([d[key] for d in batch]) for key in batch[0] if key in keys}
-
-
-
+    selected_keys = [key for key in ('img', 'binary_mask', 'expected_iou') if batch[0].get(key) is not None]
+    return {key: default_collate([s.get(key) for s in batch]) for key in selected_keys}
 
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
@@ -200,30 +197,30 @@ def train(dataset, transformation, n_epochs, batch_size,
     return unet
 
 
-# Note on data augmentation: for test we only do resizing and we do it inside the test loop
-# i.e. not transforms added to the dataset
 def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
 
-    dataset.mask_transform = dsbaugment.transformations.get("test_transform")
-
+    dataset.transform = dsbaugment.transformations.get("test_transform")
     i = 0
     examples = {}
     predictions = {}
     for sample in dataset:
-        img = batch_collate([sample]).get('img')[0]
+        # apply the model to make predictions for the image
+        img = default_collate([sample.get('img')])
+        if next(unet.parameters()).is_cuda:
+            img = Variable(img.cuda())
+        else:
+            img = Variable(img)
+        predicted_mask = (unet(img)).data[0].cpu()
+        # resize the mask and reverse the transformation
         img_id = sample.get('id')
         original_size = sample.get('size')
-        img = Variable(img).unsqueeze(0)
-        predicted_mask = unet(img)
-        # resize the mask and reverse the transformation
         predicted_mask = dsbaugment.reverse_test_transform_for_mask(predicted_mask, original_size)
         # predicted mask is now a numpy image again
-
         # apply computer vision to clean the mask (disabled by default)
         if postprocess:
             predicted_mask = dsbaugment.clean_mask(predicted_mask)
 
-        pred_rles = dsbutils.rles_from_mask(predicted_mask)
+        pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
         predictions[img_id] = pred_rles
         # save a few examples for plotting
         mask = sample.get('labelled_mask') # can be None for the test set
@@ -234,8 +231,8 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
 
 def evaluate(predictions, dataset, examples=None):
     sum_avg_precision_iou = 0.0
-    for img_id, pred_rles in predictions:
-        true_rles = dsbutils.rles_from_df(dataset.dataset, img_id)
+    for img_id, pred_rles in predictions.items():
+        true_rles = dsbutils.get_rles_from_df(dataset.dataset, img_id)
         avg_precision_iou = calc_avg_precision_iou(pred_rles, true_rles)
         sum_avg_precision_iou = sum_avg_precision_iou + avg_precision_iou
         if examples is not None:
