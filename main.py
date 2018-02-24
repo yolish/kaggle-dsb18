@@ -12,7 +12,7 @@ import datetime
 import numpy as np
 import time
 
-#TODO  gpu once available, full documentation, training optimization, augmentation optimization, postprocessing
+#TODO: e2e, training optimization, augmentation optimization, postprocessing (conditional random fields), documentation
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
@@ -146,14 +146,14 @@ if __name__ == "__main__":
                                lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu)
             dsbutils.complete_action(action, start_time)
 
-            # train the model on the full train set (train + validation)
-            action = "creating the full train dataset"
-            time = dsbutils.start_action(action)
-            train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
-            print("train size: {}".format(len(train_dataset)))
-            dsbutils.complete_action(action, start_time)
-
             if train_full:
+                # train the model on the full train set (train + validation)
+                action = "creating the full train dataset"
+                time = dsbutils.start_action(action)
+                train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
+                print("train size: {}".format(len(train_dataset)))
+                dsbutils.complete_action(action, start_time)
+
                 action = "training a UNet on the full train dataset"
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, n_epochs, batch_size, lr, weight_decay, momentum)

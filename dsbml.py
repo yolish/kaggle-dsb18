@@ -161,9 +161,8 @@ def train(dataset, transformation, n_epochs, batch_size,
     optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                 weight_decay=weight_decay)
     #optimizer = torch.optim.Adam(unet.parameters(), lr=lr)
-
+    versbose_freq = 15
     for epoch in range(n_epochs):  # loop over the dataset multiple times
-        running_loss = 0.0
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
@@ -194,10 +193,9 @@ def train(dataset, transformation, n_epochs, batch_size,
 
 
             # print statistics
-            running_loss += loss.data[0]
-            if i % 15 == 14: # print every 15 batches
-                print('running loss in epoch {}, batch{} is {}'.format(epoch + 1, i + 1, running_loss / 15))
-                running_loss = 0.0
+            if i % versbose_freq == versbose_freq-1: # print every verbose_freq batches
+                print("loss in epoch {} after processing {} images is {}".format(epoch + 1,
+                                                                                 (i+1)*batch_size, loss.data[0]))
 
     return unet
 
@@ -206,7 +204,7 @@ def train(dataset, transformation, n_epochs, batch_size,
 # i.e. not transforms added to the dataset
 def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
 
-    dataset.mask_transform = dsbaugment.test_transform
+    dataset.mask_transform = dsbaugment.transformations.get("test_transform")
 
     i = 0
     examples = {}
@@ -216,7 +214,7 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
         img_id = sample.get('id')
         original_size = sample.get('size')
         img = Variable(img).unsqueeze(0)
-        predicted_mask = unet(Variable(img))
+        predicted_mask = unet(img)
         # resize the mask and reverse the transformation
         predicted_mask = dsbaugment.reverse_test_transform_for_mask(predicted_mask, original_size)
         # predicted mask is now a numpy image again
