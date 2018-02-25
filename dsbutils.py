@@ -107,13 +107,15 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
     if not plot_true_mask:
         n_cols = 3
     fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
-    mpl.rcParams.update({'font.size': 12})
-    for i, example in enumerate(examples.values()):
-        img = example.get('img')
-        raw_predicted_mask = example.get('raw_predicted_mask')
-        predicted_mask = example.get('predicted_mask')
-        true_mask = example.get('true_mask')
-        iou = example.get('iou')
+    mpl.rcParams.update({'font.size': 6})
+    i = 0
+    for img_id, prediction in examples.items():
+
+        img = prediction.get('img')
+        raw_predicted_mask = prediction.get('raw_predicted_mask')
+        predicted_mask = prediction.get('predicted_mask')
+        true_mask = prediction.get('true_mask')
+        iou = prediction.get('iou')
 
         subplot = axes[i][0]
         subplot.imshow(img)
@@ -125,7 +127,7 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
         subplot.axis('off')
         subplot.set_title('Raw Mask')
 
-        subplot = axes[i][1]
+        subplot = axes[i][2]
         subplot.imshow(predicted_mask, cmap='gist_gray')
         subplot.axis('off')
         if iou is not None:
@@ -133,13 +135,12 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
         else:
             subplot.set_title('Mask')
 
-
         if plot_true_mask and true_mask is not None:
-            subplot = axes[i][2]
+            subplot = axes[i][3]
             subplot.imshow(true_mask, cmap='magma')
             subplot.axis('off')
             subplot.set_title('True mask')
-
+        i = i + 1
 
     plt.show()
 

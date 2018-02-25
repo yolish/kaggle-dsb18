@@ -186,7 +186,7 @@ if __name__ == "__main__":
         dsbutils.complete_action(action, start_time)
         if visualize:
             # visually evaluate a few images by comparing images and masks
-            dsbutils.plot_predicted_masks(examples, (7, 12))
+            dsbutils.plot_predicted_masks(examples, (12, 17))
 
     if test:
         action = "creating the test set"

@@ -219,7 +219,7 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
         raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
 
         if postprocess:
-            thresh = filters.otsu_threshold(raw_predicted_mask)
+            thresh = filters.threshold_otsu(raw_predicted_mask)
             predicted_mask = raw_predicted_mask > thresh
             # from: https://www.kaggle.com/gaborvecsei/basic-pure-computer-vision-segmentation-lb-0-229
             #mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))

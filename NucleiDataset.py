@@ -39,14 +39,15 @@ class NucleiDataset(Dataset):
         img_id = img_record['ImageId']
         img = imread(img_path)[:,:,:self.img_channels]
         sample = {'id':img_id, 'img':img, 'size':img.shape}
-        if self.type == 'train':
+        if self.type != 'test':
             mask_paths = img_record['MaskPaths']
             mask = self.combine_masks(mask_paths)
             sample['labelled_mask'] = mask # only used for evaluation and plotting
             binary_mask, borders = to_binary_mask(mask)
             sample['binary_mask'] = binary_mask
             sample['borders'] = borders
-            sample['expected_iou'] = calc_expected_iou(mask, binary_mask)
+            if self.type == 'train':
+                sample['expected_iou'] = calc_expected_iou(mask, binary_mask)
 
 
         if self.transform is not None:
