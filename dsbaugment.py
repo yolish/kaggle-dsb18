@@ -107,10 +107,7 @@ class ElasticTransform(object):
 
         else:
             [deformed_img, deformed_mask, deformed_borders] = self.__elastic_deformation__([img, mask, borders])
-            #deformed_mask = deformed_mask.astype(np.uint8)
-            #self.dichotom(deformed_mask, 255, 255)
-            #deformed_borders.astype(np.uint8)
-            #self.dichotom(deformed_borders, 255, 255)
+
         return deformed_img.astype(np.uint8), deformed_mask.astype(np.uint8), deformed_borders.astype(np.uint8)
 
 
