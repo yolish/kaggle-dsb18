@@ -8,7 +8,8 @@ from torch.utils.data.dataloader import default_collate
 import dsbaugment
 import time
 from torch.utils.data import DataLoader
-from PIL import Image
+from skimage import filters
+import cv2
 
 #region loss functions
 # Aside:
@@ -214,19 +215,27 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
         # resize the mask and reverse the transformation
         img_id = sample.get('id')
         original_size = sample.get('size')
-        predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size)
-        # predicted mask is now a numpy image again
-        # apply computer vision to clean the mask (disabled by default)
+        # get the predicted mask (raw, i.e. peobabilities)
+        raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
+
         if postprocess:
-            predicted_mask = dsbaugment.clean_mask(predicted_mask)
+            thresh = filters.otsu_threshold(raw_predicted_mask)
+            predicted_mask = raw_predicted_mask > thresh
+            # from: https://www.kaggle.com/gaborvecsei/basic-pure-computer-vision-segmentation-lb-0-229
+            #mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+            #mask = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+
+        else:
+            predicted_mask = raw_predicted_mask > 0.5
 
         pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
         predictions[img_id] = pred_rles
         # save a few examples for plotting
-        mask = sample.get('labelled_mask') # can be None for the test set
         if i < n_masks_to_collect:
             examples[img_id] = {'img': dsbaugment.reverse_test_transform(img.data[0].cpu(), original_size),
-                                'labelled_mask':mask, 'predicted_mask':predicted_mask}
+                                'raw_predicted_mask':raw_predicted_mask, 'predicted_mask':predicted_mask,
+                                "true_mask":sample.get('labelled_mask')# can be Noe for the test set
+                                }
         i = i + 1
     return predictions, examples
 

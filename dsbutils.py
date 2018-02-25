@@ -101,36 +101,44 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
                 subplot.set_title('Weight Map')
     plt.show()
 
-def plot_predicted_masks(samples, fig_size, plot_true_mask=True):
-    n_cols = 3
-    n_imgs = len(samples)
+def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
+    n_cols = 4
+    n_imgs = len(examples)
     if not plot_true_mask:
-        n_cols = 2
+        n_cols = 3
     fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
-    for i, sample in enumerate(samples.values()):
-        img = sample.get('img')
-        predicted_mask = sample.get('predicted_mask')
-        mask = sample.get('labelled_mask')
-        #iou = sample.get('iou') use
+    mpl.rcParams.update({'font.size': 12})
+    for i, example in enumerate(examples.values()):
+        img = example.get('img')
+        raw_predicted_mask = example.get('raw_predicted_mask')
+        predicted_mask = example.get('predicted_mask')
+        true_mask = example.get('true_mask')
+        iou = example.get('iou')
 
         subplot = axes[i][0]
         subplot.imshow(img)
         subplot.axis('off')
-        if i == 0:
-            subplot.set_title('Input')
+        subplot.set_title('Image')
+
+        subplot = axes[i][1]
+        subplot.imshow(raw_predicted_mask, cmap='gist_gray')
+        subplot.axis('off')
+        subplot.set_title('Raw Mask')
 
         subplot = axes[i][1]
         subplot.imshow(predicted_mask, cmap='gist_gray')
         subplot.axis('off')
-        if i == 0:
-            subplot.set_title('Prediction')
+        if iou is not None:
+            subplot.set_title('Mask (IoU: {}'.format(iou))
+        else:
+            subplot.set_title('Mask')
 
-        if plot_true_mask and mask is not None:
+
+        if plot_true_mask and true_mask is not None:
             subplot = axes[i][2]
-            subplot.imshow(mask, cmap='magma')
+            subplot.imshow(true_mask, cmap='magma')
             subplot.axis('off')
-            if i == 0:
-                subplot.set_title('True mask')
+            subplot.set_title('True mask')
 
 
     plt.show()
@@ -191,17 +199,17 @@ def compute_weight_map(labelled_mask):
 
 
 
-def get_rles_from_mask(labelled_img, thresh = 0.5, label_img = True):
+def get_rles_from_mask(labelled_img, label_img = True):
     '''
-    :param labelled_img: the image with the segmented objects; np array of shape (hight_, width)
-           if the image is not labelled p > threshold - mask, p <= threshold - background
+    :param labelled_img: the image with the segmented objects; integer np array of shape (hight_, width)
+           if not labelled 1= foreground, 0= background
     :param thresh: the threshold to apply to convert class probabilities to mask vs background
     :param label_img: a boolean indicating whether to label the mask to get the different objects
     :return: a list of RLEs for the segmented objects in the given image
     '''
     rles = []
     if label_img:
-        labelled_img = label(labelled_img > thresh) # Label connected regions of an integer array.
+        labelled_img = label(labelled_img) # Label connected regions of an integer array.
 
     n_labels = labelled_img.max()
     if n_labels<1:

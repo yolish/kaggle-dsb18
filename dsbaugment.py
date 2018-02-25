@@ -1,11 +1,8 @@
-import PIL
 from PIL import Image
 from torchvision import transforms
 from JointCompose import JointCompose, JOINT_TRANSFORM, IMG_ONLY_TRANSFORM, MASK_ONLY_TRANSFORM, RANDOM_JOINT_TRANSFORM_WITH_BORDERS, BORDER_ONLY_TRANSFORM, JOINT_TRANSFORM_WITH_BORDERS
-import cv2
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
-
 from scipy.ndimage.filters import gaussian_filter
 from skimage.segmentation import mark_boundaries
 
@@ -189,13 +186,7 @@ def to_binary_mask(labelled_mask, with_borders = True):
     mask = labelled_mask > 0
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
-# review and improve
-def clean_mask(mask, thresh=0.5):
-    mask = mask > thresh
-    # from: https://www.kaggle.com/gaborvecsei/basic-pure-computer-vision-segmentation-lb-0-229
-    mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-    mask = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-    return mask
+
 
 transformations = {
 "train_transform_elastic":JointCompose(# transformations
