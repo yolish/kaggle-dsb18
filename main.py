@@ -28,6 +28,7 @@ if __name__ == "__main__":
     sanity_augment = actions_config.get("sanity_augment")
     visualize = actions_config.get("visualize")
     seed = actions_config.get('seed')
+    validation_dataset_filename = actions_config.get('validation_dataset_filename')
 
     train_config = config.get("train")
     test_config = config.get("test")
@@ -39,6 +40,7 @@ if __name__ == "__main__":
         np.random.seed(42)
         torch.manual_seed(42)
 
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
 
     action = "collecting images details"
     start_time = dsbutils.start_action(action)
@@ -51,9 +53,15 @@ if __name__ == "__main__":
     start_time = dsbutils.start_action(action)
     labels_file = os.path.join(dsb_data_path, '{}_train_labels.csv'.format(stage))
     train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
-    valid_dataset = train_dataset.split(validation_frac, 'validation')
+    if validation_dataset_filename is not None:
+        valid_dataset = train_dataset.split(validation_frac, 'validation', filename= validation_dataset_filename)
+    else:
+        valid_dataset = train_dataset.split(validation_frac, 'validation')
+        valid_dataset.dataset.to_csv(dsb_output_path + "validation_dataset_" + timestamp + ".csv")
+
     print("train size: {}, validation size: {}".format(len(train_dataset),
                                                         len(valid_dataset)))
+
     dsbutils.complete_action(action, start_time)
 
     if sanity_basic:
@@ -122,6 +130,7 @@ if __name__ == "__main__":
         model_filename = test_config.get("model")
 
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
+
     if train_config is not None:
         model_filename = train_config.get("model")
 
@@ -141,10 +150,16 @@ if __name__ == "__main__":
             transformation = dsbaugment.transformations.get(transformation_name)
 
             action = "training a UNet"
+
+
+
             start_time = dsbutils.start_action(action)
             unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu)
             dsbutils.complete_action(action, start_time)
+
+
+
 
             if train_full:
                 # train the model on the full train set (train + validation)
@@ -172,6 +187,9 @@ if __name__ == "__main__":
 
     if (evaluate or test) and unet is None:
         unet = torch.load(model_filename)
+        # take the timestamp from the model name
+        timestamp = model_filename.split("model_")[1].split(".pth")[0]
+
 
     if evaluate:
         action = "making predictions for the validation set"
@@ -207,7 +225,7 @@ if __name__ == "__main__":
         start_time = dsbutils.start_action(action)
         submission_df = dsbutils.to_submission_df(predictions)
         submission_filename = dsb_output_path + "model_predictions_postprocess_" +str(postprocess) +"_" + timestamp + ".csv"
-        submission_df.to_csv(submission_filename)
+        submission_df.to_csv(submission_filename, columns=('ImageId','EncodedPixels'), index=False)
         print("predictions on tess set written to: {}".format(submission_filename))
         dsbutils.complete_action(action, start_time)
 
