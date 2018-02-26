@@ -6,51 +6,84 @@ from torch.autograd import Variable
 import numpy as np
 from torch.utils.data.dataloader import default_collate
 import dsbaugment
-import time
 from torch.utils.data import DataLoader
 from skimage import filters
+from skimage.measure import label
+
+from scipy import ndimage
+from skimage import morphology
+from skimage.morphology import watershed
+from skimage.feature import peak_local_max
+
 import cv2
 
 #region loss functions
 # Aside:
 # comparison between DICE and IOU: https://stats.stackexchange.com/questions/273537/f1-dice-score-vs-iou
 
+#based on 'Generalised Dice overlap as a deep learning loss
+#function for highly unbalanced segmentations' (Sudre et al, 2017)
+def soft_dice_loss(inputs, targets, epsilon = 1):
+    batch_size = targets.size(0)
+    loss = 0.0
+    m = nn.Sigmoid()
+    for i in xrange(batch_size):
+        prob = m(inputs[i])
+        ref = targets[i]
+        intersection_0 = ((1 - ref) * (1 - prob)).sum()
+        union_0 = ((1 - ref) + (1 - prob)).sum()
 
-# from https://www.kaggle.com/cloudfall/pytorch-tutorials-on-dsb2018
-def soft_dice_loss(inputs, targets):
-    num = targets.size(0)
-    m1 = inputs.view(num, -1)
-    m2 = targets.view(num, -1)
-    intersection = (m1 * m2)
-    dice = 2. * (intersection.sum(1) + 1) / (m1.sum(1) + m2.sum(1) + 1) # gives a score for each row
-    loss = 1 - dice.sum() / num # 1- mean row score
-    return loss
+        intersection_1 = (ref * prob).sum()
+        union_1 = (ref + prob).sum()
 
-# approximation of IoU loss for binary (mask/background) output from 'Optimizing Intersection-Over-Union in Deep
-# Neural Networks for Image Segmentation' Rhaman and Wang (http://www.cs.umanitoba.ca/~ywang/papers/isvc16.pdf)
-'''
-def iou_loss(inputs, targets):
-    num = targets.size(0)
-    m1 = inputs.view(num, -1)
-    m2 = targets.view(num, -1)
-    intersection = (m1 * m2).sum(1)
-    union = (m1 + m2 - m1*m2).sum(1)
-    iou = intersection/union  # gives a score for each row
-    loss = 1 - iou.sum() / num  # 1- mean row score
-    return loss
-'''
+        dl = 1 - (intersection_0+epsilon)/(union_0+epsilon) - (intersection_1+epsilon)/(union_1+epsilon)
+        loss = loss + dl
+    return loss / batch_size
 
-# from https://github.com/pytorch/pytorch/issues/751
-class StableBCELoss(nn.modules.Module):
-    def __init__(self):
-        super(StableBCELoss, self).__init__()
 
-    def forward(self, input, target, weight=None):
-        neg_abs = - input.abs()
-        loss = input.clamp(min=0) - input * target + (1 + neg_abs.exp()).log()
-        if weight is not None:
-            loss = loss * weight
-        return loss.mean()
+def generalized_dice_loss(inputs, targets):
+    batch_size = targets.size(0)
+    loss = 0.0
+
+    for i in xrange(batch_size):
+        prob = inputs[i]
+        ref = targets[i]
+        intersection_0 = ((1-ref) * (1-prob)).sum()
+        union_0 = ((1-ref) + (1-prob)).sum()
+        freq_0 = (1-ref).sum()
+        w0 = 1 / (freq_0 * freq_0)
+
+        intersection_1 = (ref*prob).sum()
+        union_1 = (ref + prob).sum()
+        freq_1 = ref.sum()
+        w1 = 1/(freq_1*freq_1)
+
+        gdl = 1 - 2 * ((intersection_0*w0 + intersection_1*w1)/(w0*union_0+w1*union_1))
+        loss = loss + gdl
+    return loss/batch_size
+
+# weighted cross entropy with optional border weights
+def weighted_cross_entropy(inputs, targets, weights=None):
+    batch_size = targets.size(0)
+    loss = 0.0
+    for i in xrange(batch_size):
+        prob = inputs[i].view(-1)
+        ref = targets[i].view(-1)
+        w1 = (len(ref) - ref.sum())/ref.sum()
+        if weights is None:
+            ce_loss = (w1*(ref * prob.log()) + ((1-ref) * ((1-prob).log()))).mean()
+
+        else:
+            #ce_loss = (weights[i].view(-1)*(w1 * (ref * prob.log()) + ((1 - ref) * ((1 - prob).log())))).mean()
+            my_weights = w1 * ref + weights[i].view(-1)
+            ce_loss = (my_weights * (ref * prob.log()) + ((1 - ref) * ((1 - prob).log()))).mean()
+
+        loss = loss - ce_loss
+    return loss/batch_size
+
+
+
+
 
 #endregion
 
@@ -138,7 +171,7 @@ def try_add_weight_map(sample, w0=4.0):
 #Note: for train we do data augmentation as part of the transform
 
 def batch_collate(batch):
-    selected_keys = [key for key in ('img', 'binary_mask', 'expected_iou') if batch[0].get(key) is not None]
+    selected_keys = [key for key in ('img', 'binary_mask', 'weight_map') if batch[0].get(key) is not None]
     return {key: default_collate([s.get(key) for s in batch]) for key in selected_keys}
 
 # for train we do data augmentation as part of the transforms calls
@@ -155,28 +188,28 @@ def train(dataset, transformation, n_epochs, batch_size,
         unet.cuda()
 
     # define the loss criterion and the optimizer
-    criterion = StableBCELoss()
+    criterion = weighted_cross_entropy
     optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                 weight_decay=weight_decay)
-    #optimizer = torch.optim.Adam(unet.parameters(), lr=lr)
-    versbose_freq = 15
+
+    versbose_freq = 50
     for epoch in range(n_epochs):  # loop over the dataset multiple times
+        running_loss = 0.0
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
-            start_time = time.time()
             imgs = sample_batched.get('img')
             masks = sample_batched.get('binary_mask')
             weight_maps = sample_batched.get('weight_map')
             if use_gpu:
-                imgs, masks = Variable(imgs.cuda()), Variable(masks.cuda())
+                imgs, masks = Variable(imgs).cuda(), Variable(masks, requires_grad=False).cuda()
             else:
-                imgs, masks = Variable(imgs), Variable(masks)
+                imgs, masks = Variable(imgs), Variable(masks, requires_grad=False)
             if weighted_loss:
                 if use_gpu:
-                    weight_maps = Variable(weight_maps.cuda())
+                    weight_maps = Variable(weight_maps, requires_grad=False).cuda()
                 else:
-                    weight_maps = Variable(weight_maps)
+                    weight_maps = Variable(weight_maps, requires_grad=False)
             else:
                 weight_maps = None
 
@@ -185,15 +218,19 @@ def train(dataset, transformation, n_epochs, batch_size,
 
             # forward + backward + optimize
             outputs = unet(imgs)
-            loss = criterion(outputs, masks, weight=weight_maps )
+
+            loss = criterion(outputs, masks, weights=weight_maps)
             loss.backward()
             optimizer.step()
+
+            running_loss = running_loss + loss.data[0]
 
 
             # print statistics
             if i % versbose_freq == versbose_freq-1: # print every verbose_freq batches
-                print("loss in epoch {} after processing {} images is {}".format(epoch + 1,
-                                                                                 (i+1)*batch_size, loss.data[0]))
+                n_imgs = (i+1)*batch_size
+                print("mean loss in epoch {} after processing {} images is {}".format(epoch + 1,
+                                                                                n_imgs , running_loss/n_imgs))
 
     return unet
 
@@ -220,13 +257,23 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
 
         if postprocess:
             thresh = filters.threshold_otsu(raw_predicted_mask)
-            predicted_mask = raw_predicted_mask > thresh
+            predicted_mask = label(raw_predicted_mask > thresh)
+
+
+            #distance = ndimage.distance_transform_edt(predicted_mask)
+            #local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((3, 3)), labels=predicted_mask)
+            #markers = morphology.label(local_maxi)
+            #predicted_mask = watershed(-distance, markers, mask=predicted_mask)
+
+
+
             # from: https://www.kaggle.com/gaborvecsei/basic-pure-computer-vision-segmentation-lb-0-229
             #mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
             #mask = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
 
         else:
             predicted_mask = raw_predicted_mask > 0.5
+            predicted_mask = label(predicted_mask)
 
         pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
         predictions[img_id] = pred_rles
@@ -249,7 +296,7 @@ def evaluate(predictions, dataset, examples=None):
             example = examples.get(img_id)
             if example is not None:
                 example['iou'] = avg_precision_iou
-    mean_avg_precision_iou = avg_precision_iou / len(dataset)
+    mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
 
 #endregion
