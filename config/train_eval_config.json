@@ -7,19 +7,20 @@
     "sanity_basic": false,
     "sanity_augment": false,
     "visualize": true,
-    "seed": false
+    "seed": false,
+    "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv"
   },
   "misc": {
     "stage": "stage1"
   },
   "train": {
     "batch_size": 4,
-    "n_epochs": 1,
+    "n_epochs": 2,
     "lr": 0.0001,
     "weight_decay": 0.0002,
-    "momentum": 0.9,
+    "momentum": 0.99,
     "init_weights": true,
-    "weighted_loss": false,
+    "weighted_loss": true,
     "use_gpu": true,
     "train_full": false,
     "save_model": true,
@@ -29,7 +30,7 @@
   {
     "eval":true,
     "test":false,
-    "postprocess":false
+    "postprocess":true
   }
 
 }
