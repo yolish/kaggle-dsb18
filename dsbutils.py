@@ -233,7 +233,7 @@ def format_rle(rle):
 
 def to_submission_df(predictions):
     df = pd.DataFrame()
-    for img_id, pred_rles in predictions:
+    for img_id, pred_rles in predictions.items():
         for rle in pred_rles:
             s = pd.Series({'ImageId': img_id, 'EncodedPixels': format_rle(rle)})
             df = df.append(s, ignore_index=True)
