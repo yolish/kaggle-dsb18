@@ -15,8 +15,7 @@ class ConvRelu(nn.Module):
         )
 
     def forward(self, conv_relu_input):
-        output = self.operation(conv_relu_input)
-        return output
+        return self.operation(conv_relu_input)
 
 class ConvReluSeq(nn.Module):
     def __init__(self, n_in_channels, n_out_channels, n_components=2, kernel_size=3, padding=1):
@@ -27,8 +26,7 @@ class ConvReluSeq(nn.Module):
         self.operation = nn.Sequential(*components)
 
     def forward(self, conv_relu_input):
-        output = self.operation(conv_relu_input)
-        return output
+        return self.operation(conv_relu_input)
 
 class UpConvWithCopyCrop(nn.Module):
     def __init__(self, n_in_channels, n_out_channels, kernel_size=2, stride=2):
@@ -43,8 +41,7 @@ class UpConvWithCopyCrop(nn.Module):
         copy_crop_output = F.pad(copy_crop_input, (height_diff // 2, int(height_diff / 2),
                                  width_diff // 2, int(width_diff/ 2)))
         # concatenate them together
-        output = torch.cat([copy_crop_output, up_conv_output], dim=1)
-        return output
+        return torch.cat([copy_crop_output, up_conv_output], dim=1)
 
 class UNet(nn.Module):
     def __init__(self, n_in_channels, n_classes, init_weights=True):
@@ -90,15 +87,14 @@ class UNet(nn.Module):
         contract_out_3 = self.conv_relu_seq_contract_3(self.max_pool(contract_out_2))
         contract_out_4 = self.conv_relu_seq_contract_4(self.max_pool(contract_out_3))
         contract_out_5 = self.conv_relu_seq_contract_5(self.max_pool(contract_out_4))
-        # expansive path
+        # expansive path, do in place becuase of memory considerations
         expansive_out = self.conv_relu_seq_expan_1(self.up_conv_with_copy_crop_1(contract_out_5, contract_out_4))
         expansive_out = self.conv_relu_seq_expan_2(self.up_conv_with_copy_crop_2(expansive_out, contract_out_3))
         expansive_out = self.conv_relu_seq_expan_3(self.up_conv_with_copy_crop_3(expansive_out, contract_out_2))
         expansive_out = self.conv_relu_seq_expan_4(self.up_conv_with_copy_crop_4(expansive_out, contract_out_1))
-        expansive_out = self.out_conv(expansive_out)
+        output = self.out_conv(expansive_out)
         # transform to range [0,1]
-        output = torch.nn.functional.sigmoid(expansive_out)
-        return output
+        return torch.nn.functional.sigmoid(output)
 
 
 
