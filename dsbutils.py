@@ -106,8 +106,9 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
     n_imgs = len(examples)
     if not plot_true_mask:
         n_cols = 3
-    fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
     mpl.rcParams.update({'font.size': 6})
+    fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
+
     i = 0
     for img_id, prediction in examples.items():
 
@@ -123,15 +124,15 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
         subplot.set_title('Image')
 
         subplot = axes[i][1]
-        subplot.imshow(raw_predicted_mask, cmap='gist_gray')
+        subplot.imshow(raw_predicted_mask, cmap='magma')
         subplot.axis('off')
         subplot.set_title('Raw Mask')
 
         subplot = axes[i][2]
-        subplot.imshow(predicted_mask, cmap='gist_gray')
+        subplot.imshow(predicted_mask, cmap='magma')
         subplot.axis('off')
         if iou is not None:
-            subplot.set_title('Mask (IoU: {}'.format(iou))
+            subplot.set_title('Mask (IoU: {:.3f}'.format(iou))
         else:
             subplot.set_title('Mask')
 
@@ -200,7 +201,7 @@ def compute_weight_map(labelled_mask):
 
 
 
-def get_rles_from_mask(labelled_img, label_img = True):
+def get_rles_from_mask(labelled_img, label_img = False):
     '''
     :param labelled_img: the image with the segmented objects; integer np array of shape (hight_, width)
            if not labelled 1= foreground, 0= background
