@@ -57,14 +57,20 @@ class NucleiDataset(Dataset):
 
         return sample
 
-    def split(self, frac, type, transform = None):
+    def split(self, frac, type, transform = None, filename=None):
         # split to 2 new datasets
-        total_size = self.__len__()
-        sample_size = int(total_size*frac)
-        sampled_idx = np.random.choice(total_size, replace=False, size=sample_size)
-        remaining_idx = [idx for idx in xrange(total_size) if idx not in sampled_idx]
-        split_out_dataset = self.dataset.iloc[sampled_idx]
-        self.dataset = self.dataset.iloc[remaining_idx]
+        if filename is not None:
+            split_out_df = pd.read_csv(filename)
+            img_ids = split_out_df['ImageId'].values
+            split_out_dataset = self.dataset.loc[self.dataset['ImageId'].isin(img_ids)]
+            self.dataset = self.dataset.loc[~self.dataset['ImageId'].isin(img_ids)]
+        else:
+            total_size = self.__len__()
+            sample_size = int(total_size*frac)
+            sampled_idx = np.random.choice(total_size, replace=False, size=sample_size)
+            remaining_idx = [idx for idx in xrange(total_size) if idx not in sampled_idx]
+            split_out_dataset = self.dataset.iloc[sampled_idx]
+            self.dataset = self.dataset.iloc[remaining_idx]
         return NucleiDataset(type, dataset=split_out_dataset, transform = transform)
 
     def combine_masks(self, masks_paths):
@@ -75,7 +81,6 @@ class NucleiDataset(Dataset):
             mask = imread(masks_paths[i])
             combined_mask[mask > 0] = i + 1
         return combined_mask
-
 
 
 
