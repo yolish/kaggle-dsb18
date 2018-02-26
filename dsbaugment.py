@@ -66,6 +66,11 @@ class Binarize(object):
         img[img < 1.0] = 0.0
         return img
 
+class Negative(object):
+
+    def __call__(self, tensor):
+        return 1-tensor
+
 class ElasticTransform(object):
     '''
     sigma: positive float for smoothing the transformation (elasticy of the transformation.)
@@ -200,8 +205,10 @@ transformations = {
     # flipping
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
     # color jittering (image only)
-    TransformSpec(transforms.ColorJitter(brightness=0.5, contrast=0.5),
-                  IMG_ONLY_TRANSFORM, prob = 0.5),
+    TransformSpec(transforms.Grayscale(num_output_channels=3),
+                      IMG_ONLY_TRANSFORM),
+    TransformSpec(transforms.ColorJitter(brightness=0.5, hue=0.3),
+                      IMG_ONLY_TRANSFORM, prob=0.6),
     #resize image (bilinear interpolation)
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
@@ -227,8 +234,11 @@ transformations = {
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
      # color jittering (image only)
-    TransformSpec(transforms.ColorJitter(brightness=0.5, contrast=0.5),
-                   IMG_ONLY_TRANSFORM, prob=0.5),
+    TransformSpec(transforms.Grayscale(num_output_channels=3),
+                  IMG_ONLY_TRANSFORM),
+
+    TransformSpec(transforms.ColorJitter(brightness=0.5, hue=0.3),
+                   IMG_ONLY_TRANSFORM, prob=0.6),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
@@ -236,6 +246,8 @@ transformations = {
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+    TransformSpec(Negative(),
+                  IMG_ONLY_TRANSFORM, prob = 0.25),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
@@ -244,6 +256,8 @@ transformations = {
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
+    TransformSpec(transforms.Grayscale(num_output_channels=3),
+                  IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
