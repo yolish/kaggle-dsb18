@@ -179,14 +179,14 @@ if __name__ == "__main__":
         predictions, examples = dsbml.test(unet, valid_dataset, postprocess)
         dsbutils.complete_action(action, start_time)
 
-        action = "evaluating prediction"
+        action = "evaluating predictions"
         start_time = dsbutils.start_action(action)
         mean_avg_precision_iou = dsbml.evaluate(predictions, valid_dataset, examples=examples)
         print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
         dsbutils.complete_action(action, start_time)
         if visualize:
             # visually evaluate a few images by comparing images and masks
-            dsbutils.plot_predicted_masks(examples, (12, 17))
+            dsbutils.plot_predicted_masks(examples, (22, 27))
 
     if test:
         action = "creating the test set"
