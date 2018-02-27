@@ -2,6 +2,7 @@ from UNet import UNet
 import dsbutils
 import torch
 import torch.nn as nn
+from torch.optim.lr_scheduler import StepLR
 from torch.autograd import Variable
 import numpy as np
 from torch.utils.data.dataloader import default_collate
@@ -9,13 +10,8 @@ import dsbaugment
 from torch.utils.data import DataLoader
 from skimage import filters
 from skimage.measure import label
+from skimage.segmentation import find_boundaries
 
-from scipy import ndimage
-from skimage import morphology
-from skimage.morphology import watershed
-from skimage.feature import peak_local_max
-
-import cv2
 
 #region loss functions
 # Aside:
@@ -41,7 +37,7 @@ def soft_dice_loss(inputs, targets, epsilon = 1):
     return loss / batch_size
 
 
-def generalized_dice_loss(inputs, targets):
+def generalized_dice_loss(inputs, targets, weights=None):
     batch_size = targets.size(0)
     loss = 0.0
 
@@ -69,14 +65,14 @@ def weighted_cross_entropy(inputs, targets, weights=None):
     for i in xrange(batch_size):
         prob = inputs[i].view(-1)
         ref = targets[i].view(-1)
-        w1 = (len(ref) - ref.sum())/ref.sum()
+        w1 = prob.sum()
+        w1 = (len(prob) - w1)/w1
         if weights is None:
-            ce_loss = (w1*(ref * prob.log()) + ((1-ref) * ((1-prob).log()))).mean()
-
+            ce_loss = ((ref * prob.log()) + ((1-ref) * ((1-prob).log()))).mean()
         else:
+
             #ce_loss = (weights[i].view(-1)*(w1 * (ref * prob.log()) + ((1 - ref) * ((1 - prob).log())))).mean()
-            my_weights = w1 * ref + weights[i].view(-1)
-            ce_loss = (my_weights * (ref * prob.log()) + ((1 - ref) * ((1 - prob).log()))).mean()
+            ce_loss = ( (w1 * ref + weights[i].view(-1))*(ref * prob.log()) + ((1 - ref) * ((1 - prob).log()))).mean()
 
         loss = loss - ce_loss
     return loss/batch_size
@@ -188,13 +184,17 @@ def train(dataset, transformation, n_epochs, batch_size,
         unet.cuda()
 
     # define the loss criterion and the optimizer
-    criterion = weighted_cross_entropy
+    criterion = generalized_dice_loss
+
     optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                 weight_decay=weight_decay)
 
-    versbose_freq = 50
+    scheduler = StepLR(optimizer, step_size=15, gamma=0.5)
+    #betas by default: beta1= 0.9, beta2=0.999
+    #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):  # loop over the dataset multiple times
-        running_loss = 0.0
+        mean_epoch_loss = 0.0
+        scheduler.step()
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
@@ -220,22 +220,20 @@ def train(dataset, transformation, n_epochs, batch_size,
             outputs = unet(imgs)
 
             loss = criterion(outputs, masks, weights=weight_maps)
+            mean_epoch_loss = mean_epoch_loss + loss.data[0]
             loss.backward()
             optimizer.step()
 
-            running_loss = running_loss + loss.data[0]
+
+        print("epoch {} / {} : mean loss is: {}".format(epoch, n_epochs, mean_epoch_loss/(i+1)))
 
 
-            # print statistics
-            if i % versbose_freq == versbose_freq-1: # print every verbose_freq batches
-                n_imgs = (i+1)*batch_size
-                print("mean loss in epoch {} after processing {} images is {}".format(epoch + 1,
-                                                                                n_imgs , running_loss/n_imgs))
 
     return unet
 
 
-def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
+
+def test(unet, dataset, postprocess=True, n_masks_to_collect=6):
 
     dataset.transform = dsbaugment.transformations.get("test_transform")
     i = 0
@@ -256,24 +254,16 @@ def test(unet, dataset, postprocess=False, n_masks_to_collect=6):
         raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
 
         if postprocess:
-            thresh = filters.threshold_otsu(raw_predicted_mask)
-            predicted_mask = label(raw_predicted_mask > thresh)
-
-
-            #distance = ndimage.distance_transform_edt(predicted_mask)
-            #local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((3, 3)), labels=predicted_mask)
-            #markers = morphology.label(local_maxi)
-            #predicted_mask = watershed(-distance, markers, mask=predicted_mask)
-
-
-
-            # from: https://www.kaggle.com/gaborvecsei/basic-pure-computer-vision-segmentation-lb-0-229
-            #mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-            #mask = cv2.erode(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+            if len(np.unique(raw_predicted_mask)) > 1:
+                thresh = filters.threshold_otsu(raw_predicted_mask)
+                predicted_mask = label(raw_predicted_mask > thresh)
+            else:
+                predicted_mask = label(raw_predicted_mask > 0.5)
 
         else:
-            predicted_mask = raw_predicted_mask > 0.5
-            predicted_mask = label(predicted_mask)
+            thresh = 0.5
+            predicted_mask = label(raw_predicted_mask > thresh)
+
 
         pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
         predictions[img_id] = pred_rles
@@ -298,5 +288,51 @@ def evaluate(predictions, dataset, examples=None):
                 example['iou'] = avg_precision_iou
     mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
+
+def test_ensemble(models_filenames, dataset, postprocess=True, use_gpu=True, n_masks_to_collect=6):
+
+        dataset.transform = dsbaugment.transformations.get("test_transform")
+        i = 0
+        examples = {}
+        predictions = {}
+        models = [(torch.load(f)) for f in models_filenames]
+        n_models = len(models)
+        for sample in dataset:
+            # apply the model to make predictions for the image
+            img = default_collate([sample.get('img')])
+            if use_gpu:
+                img = Variable(img.cuda())
+            else:
+                img = Variable(img)
+            for i, unet in enumerate(models):
+                if i == 0:
+                    predicted_mask = (unet(img)).data[0].cpu()
+                else:
+                    predicted_mask = predicted_mask + (unet(img)).data[0].cpu()
+            predicted_mask = predicted_mask/n_models
+            # resize the mask and reverse the transformation
+            img_id = sample.get('id')
+            original_size = sample.get('size')
+            # get the predicted mask (raw, i.e. peobabilities)
+            raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask,
+                                                                   original_size)  # predicted mask is now a numpy image again
+
+            if postprocess:
+                thresh = filters.threshold_otsu(raw_predicted_mask)
+                predicted_mask = label(raw_predicted_mask > thresh)
+            else:
+                thresh = 0.5
+                predicted_mask = label(raw_predicted_mask > thresh)
+
+            pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
+            predictions[img_id] = pred_rles
+            # save a few examples for plotting
+            if i < n_masks_to_collect:
+                examples[img_id] = {'img': dsbaugment.reverse_test_transform(img.data[0].cpu(), original_size),
+                                    'raw_predicted_mask': raw_predicted_mask, 'predicted_mask': predicted_mask,
+                                    "true_mask": sample.get('labelled_mask')  # can be Noe for the test set
+                                    }
+            i = i + 1
+        return predictions, examples
 
 #endregion
