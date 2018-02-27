@@ -3,7 +3,6 @@ import dsbutils
 import dsbml
 import os
 import torch
-from UNet import UNet
 import random
 import dsbaugment
 import json
@@ -35,10 +34,11 @@ if __name__ == "__main__":
     misc_config = config.get("misc")
     stage = misc_config.get("stage")
 
-    if seed:
+    if seed is not None:
         # seed all random instances
-        np.random.seed(42)
-        torch.manual_seed(42)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.manual_seed(seed)
 
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -150,17 +150,6 @@ if __name__ == "__main__":
             transformation = dsbaugment.transformations.get(transformation_name)
 
             action = "training a UNet"
-
-
-
-            start_time = dsbutils.start_action(action)
-            unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
-                               lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu)
-            dsbutils.complete_action(action, start_time)
-
-
-
-
             if train_full:
                 # train the model on the full train set (train + validation)
                 action = "creating the full train dataset"
@@ -173,6 +162,12 @@ if __name__ == "__main__":
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, n_epochs, batch_size, lr, weight_decay, momentum)
                 dsbutils.complete_action(action, start_time)
+            else: # train without validation set
+                start_time = dsbutils.start_action(action)
+                unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu)
+                dsbutils.complete_action(action, start_time)
+
 
             if save_model:
                 model_filename = dsb_output_path + "model_" + timestamp + ".pth"
