@@ -4,7 +4,7 @@ from JointCompose import JointCompose, JOINT_TRANSFORM, IMG_ONLY_TRANSFORM, MASK
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
-from skimage.segmentation import mark_boundaries
+from skimage.segmentation import mark_boundaries, find_boundaries
 
 
 IMG_SIZE = 256
@@ -184,8 +184,11 @@ def to_binary_mask(labelled_mask, with_borders = True):
     if with_borders:
         img = np.zeros((labelled_mask.shape[0], labelled_mask.shape[1], 3))
         borders = mark_boundaries(img, labelled_mask, color=(255,255,255))
+        mask = (labelled_mask > 0)
+        mask[find_boundaries(labelled_mask, mode='outer')] = 0
 
-    mask = labelled_mask > 0
+
+    mask = (labelled_mask > 0)
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
 
@@ -223,6 +226,8 @@ transformations = {
     # numpy image: H x W x C
     # torch image: C X H X W
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+    TransformSpec(Negative(),
+                  IMG_ONLY_TRANSFORM, prob = 0.35),
     # ensure mask and borders are binarized
     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
@@ -247,7 +252,7 @@ transformations = {
                   MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(Negative(),
-                  IMG_ONLY_TRANSFORM, prob = 0.25),
+                  IMG_ONLY_TRANSFORM, prob = 0.35),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
