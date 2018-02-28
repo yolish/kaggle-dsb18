@@ -10,7 +10,7 @@ import dsbaugment
 from torch.utils.data import DataLoader
 from skimage import filters
 from skimage.measure import label
-from skimage.segmentation import find_boundaries
+
 
 
 #region loss functions
@@ -189,7 +189,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                 weight_decay=weight_decay)
 
-    scheduler = StepLR(optimizer, step_size=15, gamma=0.5)
+    scheduler = StepLR(optimizer, step_size=15, gamma=0.1)
     #betas by default: beta1= 0.9, beta2=0.999
     #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -233,7 +233,7 @@ def train(dataset, transformation, n_epochs, batch_size,
 
 
 
-def test(unet, dataset, postprocess=True, n_masks_to_collect=6):
+def test(unet, dataset, postprocess=True, n_masks_to_collect=10):
 
     dataset.transform = dsbaugment.transformations.get("test_transform")
     i = 0
@@ -253,10 +253,15 @@ def test(unet, dataset, postprocess=True, n_masks_to_collect=6):
         # get the predicted mask (raw, i.e. peobabilities)
         raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
 
+
+
         if postprocess:
             if len(np.unique(raw_predicted_mask)) > 1:
                 thresh = filters.threshold_otsu(raw_predicted_mask)
-                predicted_mask = label(raw_predicted_mask > thresh)
+                predicted_mask = raw_predicted_mask > thresh
+                if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
+                    predicted_mask = 1-predicted_mask
+                predicted_mask = label(predicted_mask)
             else:
                 predicted_mask = label(raw_predicted_mask > 0.5)
 
@@ -289,7 +294,7 @@ def evaluate(predictions, dataset, examples=None):
     mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
 
-def test_ensemble(models_filenames, dataset, postprocess=True, use_gpu=True, n_masks_to_collect=6):
+def test_ensemble(models_filenames, dataset, postprocess=True, use_gpu=True, n_masks_to_collect=10):
 
         dataset.transform = dsbaugment.transformations.get("test_transform")
         i = 0
