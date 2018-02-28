@@ -1,12 +1,12 @@
 from PIL import Image
 from torchvision import transforms
-from JointCompose import JointCompose, JOINT_TRANSFORM, IMG_ONLY_TRANSFORM, MASK_ONLY_TRANSFORM, RANDOM_JOINT_TRANSFORM_WITH_BORDERS, BORDER_ONLY_TRANSFORM, JOINT_TRANSFORM_WITH_BORDERS
+from JointCompose import JointCompose, IMG_ONLY_TRANSFORM, MASK_ONLY_TRANSFORM, RANDOM_JOINT_TRANSFORM_WITH_BORDERS, BORDER_ONLY_TRANSFORM, JOINT_TRANSFORM_WITH_BORDERS
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 from skimage.segmentation import mark_boundaries, find_boundaries
-from skimage import filters
-from skimage.color import rgb2gray
+from skimage.exposure import adjust_gamma, rescale_intensity
+
 
 
 IMG_SIZE = 256
@@ -45,6 +45,17 @@ class Flip(object):
 # aside: transforms are written as callable classes instead of simple functions so that parameters
 #  of the transform need not be passed everytime it is called. For this, we just need to implement
 # __call__ method and if required, __init__ method.
+class JitterBrightness(object):
+    def __call__(self, img):
+        # img is a numpy rgb image
+        gamma = np.random.random() + 0.3
+        return adjust_gamma(img, gamma)
+
+class Negative(object):
+    def __call__(self, img):
+        # img is a numpy rgb image
+        return rescale_intensity(255-img)
+
 
 class To3D(object):
     # make into a 3d RGB-like array required for making it a PIL image and then a tensor
@@ -68,20 +79,8 @@ class Binarize(object):
         img[img < 1.0] = 0.0
         return img
 
-class CondNegative(object):
-    def __call__(self, img):
-        # img is a tensor
-        np_img = rgb2gray(PIL_torch_to_numpy(img))
-        thresh = filters.threshold_otsu(np_img)
-        mask = np_img > thresh
-        if np.sum(mask == 1) > np.sum(mask == 0):
-            img = 1-img
-        return img
 
-class Negative(object):
 
-    def __call__(self, tensor):
-        return 1-tensor
 
 class ElasticTransform(object):
     '''
@@ -207,6 +206,7 @@ def to_binary_mask(labelled_mask, with_borders = True):
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
 
+# add transformations to color
 
 transformations = {
 "train_transform_elastic":JointCompose(# transformations
@@ -241,22 +241,18 @@ transformations = {
     # numpy image: H x W x C
     # torch image: C X H X W
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
-    #TransformSpec(Negative(),
-    #              IMG_ONLY_TRANSFORM, prob = 0.35),
     # ensure mask and borders are binarized
     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
-"train_transform_basic":JointCompose(
+"train_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
+    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM, prob=0.5),
+    #TransformSpec(Negative(), IMG_ONLY_TRANSFORM, prob=0.5),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
-    TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
-     # color jittering (image only)
-    TransformSpec(transforms.ColorJitter(brightness=0.5, saturation=0.5, hue=0.5),
-                   IMG_ONLY_TRANSFORM, prob=0.6),
-    #TransformSpec(transforms.Grayscale(num_output_channels=3), IMG_ONLY_TRANSFORM),
+    TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.2),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
@@ -264,8 +260,6 @@ transformations = {
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
-#TransformSpec(Negative(),
-#                  IMG_ONLY_TRANSFORM, prob = 0.35),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
@@ -274,7 +268,6 @@ transformations = {
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
-    #TransformSpec(transforms.Grayscale(num_output_channels=3),IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
@@ -282,19 +275,18 @@ transformations = {
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
-    #TransformSpec(CondNegative(),IMG_ONLY_TRANSFORM),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
 "toy_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
     TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=1.0),
+
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.0),
-    TransformSpec(transforms.ColorJitter(brightness=0.5, contrast=0.5),
-                  IMG_ONLY_TRANSFORM, prob = 1.0),
+
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
