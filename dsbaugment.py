@@ -5,6 +5,8 @@ import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 from skimage.segmentation import mark_boundaries, find_boundaries
+from skimage import filters
+from skimage.color import rgb2gray
 
 
 IMG_SIZE = 256
@@ -64,6 +66,16 @@ class Binarize(object):
     def __call__(self, img):
         img[img > 0.5] = 1.0
         img[img < 1.0] = 0.0
+        return img
+
+class CondNegative(object):
+    def __call__(self, img):
+        # img is a tensor
+        np_img = rgb2gray(PIL_torch_to_numpy(img))
+        thresh = filters.threshold_otsu(np_img)
+        mask = np_img > thresh
+        if np.sum(mask == 1) > np.sum(mask == 0):
+            img = 1-img
         return img
 
 class Negative(object):
@@ -186,9 +198,12 @@ def to_binary_mask(labelled_mask, with_borders = True):
         borders = mark_boundaries(img, labelled_mask, color=(255,255,255))
         mask = (labelled_mask > 0)
         mask[find_boundaries(labelled_mask, mode='outer')] = 0
+    else:
+        mask = (labelled_mask > 0)
 
 
-    mask = (labelled_mask > 0)
+
+
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
 
@@ -208,10 +223,10 @@ transformations = {
     # flipping
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
     # color jittering (image only)
-    TransformSpec(transforms.Grayscale(num_output_channels=3),
-                      IMG_ONLY_TRANSFORM),
+    #TransformSpec(transforms.Grayscale(num_output_channels=3),
+    #                  IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.ColorJitter(brightness=0.5, hue=0.3),
-                      IMG_ONLY_TRANSFORM, prob=0.6),
+                      IMG_ONLY_TRANSFORM, prob=1.0),
     #resize image (bilinear interpolation)
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
@@ -226,8 +241,8 @@ transformations = {
     # numpy image: H x W x C
     # torch image: C X H X W
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
-    TransformSpec(Negative(),
-                  IMG_ONLY_TRANSFORM, prob = 0.35),
+    #TransformSpec(Negative(),
+    #              IMG_ONLY_TRANSFORM, prob = 0.35),
     # ensure mask and borders are binarized
     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
@@ -239,11 +254,9 @@ transformations = {
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
      # color jittering (image only)
-    TransformSpec(transforms.Grayscale(num_output_channels=3),
-                  IMG_ONLY_TRANSFORM),
-
-    TransformSpec(transforms.ColorJitter(brightness=0.5, hue=0.3),
+    TransformSpec(transforms.ColorJitter(brightness=0.5, saturation=0.5, hue=0.5),
                    IMG_ONLY_TRANSFORM, prob=0.6),
+    #TransformSpec(transforms.Grayscale(num_output_channels=3), IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
@@ -251,8 +264,8 @@ transformations = {
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
-    TransformSpec(Negative(),
-                  IMG_ONLY_TRANSFORM, prob = 0.35),
+#TransformSpec(Negative(),
+#                  IMG_ONLY_TRANSFORM, prob = 0.35),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
@@ -261,8 +274,7 @@ transformations = {
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
-    TransformSpec(transforms.Grayscale(num_output_channels=3),
-                  IMG_ONLY_TRANSFORM),
+    #TransformSpec(transforms.Grayscale(num_output_channels=3),IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
@@ -270,12 +282,13 @@ transformations = {
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
                   MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+    #TransformSpec(CondNegative(),IMG_ONLY_TRANSFORM),
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
 "toy_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
-    TransformSpec(ElasticTransform(sigma=0.9), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=1.0),
+    TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=1.0),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
