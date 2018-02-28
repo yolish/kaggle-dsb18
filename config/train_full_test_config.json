@@ -1,0 +1,36 @@
+{
+  "paths": {
+    "input_path": "/home/yoli/kaggle_dsb18/data",
+    "output_path": "/home/yoli/kaggle_dsb18/src/predictions/"
+  },
+  "actions": {
+    "sanity_basic": false,
+    "sanity_augment": false,
+    "visualize": true,
+    "seed": 2,
+    "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv"
+  },
+  "misc": {
+    "stage": "stage1"
+  },
+  "train": {
+    "batch_size": 4,
+    "n_epochs": 60,
+    "lr": 0.01,
+    "weight_decay": 0.002,
+    "momentum": 0.99,
+    "init_weights": true,
+    "weighted_loss": false,
+    "use_gpu": true,
+    "train_full": true,
+    "transformation": "train_transform_basic",
+     "save_model":true
+  },
+  "test":
+  {
+    "eval":false,
+    "test":true,
+    "postprocess":true
+  }
+
+}
