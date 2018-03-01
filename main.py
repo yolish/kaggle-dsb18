@@ -169,11 +169,16 @@ if __name__ == "__main__":
     test = False
     postprocess = False
     unet = None
+    requires_loading = False
     if test_config is not None:
         evaluate = test_config.get("eval")
         test = test_config.get("test")
         postprocess = test_config.get("postprocess")
         model_filename = test_config.get("model")
+        ensemble = test_config.get("ensemble")
+        if ensemble is not None:
+            requires_loading = True
+
 
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -195,6 +200,7 @@ if __name__ == "__main__":
             transformation_name = train_config.get("transformation")
             transformation = dsbaugment.transformations.get(transformation_name)
             optimizer = train_config.get('optimizer')
+
 
             action = "training a UNet"
             if train_full:
@@ -230,15 +236,21 @@ if __name__ == "__main__":
 
 
     if (evaluate or test) and unet is None:
-        unet = torch.load(model_filename)
-        # take the timestamp from the model name
-        timestamp = model_filename.split("model_")[1].split(".pth")[0]
+        if model_filename is not None:
+            unet = [torch.load(model_filename)]
+            # take the timestamp from the model name
+            timestamp = model_filename.split("model_")[1].split(".pth")[0]
+        else:
+            unet = ensemble
+
+
+
 
 
     if evaluate:
         action = "making predictions for the validation set"
         start_time = dsbutils.start_action(action)
-        predictions, examples = dsbml.test(unet, valid_dataset, postprocess)
+        predictions, examples = dsbml.test(unet, valid_dataset, requires_loading, postprocess)
         dsbutils.complete_action(action, start_time)
 
         action = "evaluating predictions"
@@ -259,7 +271,7 @@ if __name__ == "__main__":
 
         action = "making predictions for the test set"
         start_time = dsbutils.start_action(action)
-        predictions, examples = dsbml.test(unet, test_dataset, postprocess)
+        predictions, examples = dsbml.test(unet, test_dataset, requires_loading, postprocess)
         dsbutils.complete_action(action, start_time)
         # visually evaluate a few images by comparing images and masks
         if visualize:
@@ -268,7 +280,12 @@ if __name__ == "__main__":
         action = "writing the predictions to submission format"
         start_time = dsbutils.start_action(action)
         submission_df = dsbutils.to_submission_df(predictions)
-        submission_filename = dsb_output_path + "model_predictions_postprocess_" +str(postprocess) +"_" + timestamp + ".csv"
+        if ensemble is not None:
+           ensemble_metatdata_filename = dsb_output_path + "ensemble_config_" + timestamp + ".txt"
+           with open(ensemble_metatdata_filename, 'w') as f:
+               f.write(json.dumps({"ensemble_config": test_config}))
+           timestamp = "ensemble_" + timestamp
+        submission_filename = dsb_output_path + "model_predictions_postprocess_" + str(postprocess) + "_" + timestamp + ".csv"
         submission_df.to_csv(submission_filename, columns=('ImageId','EncodedPixels'), index=False)
         print("predictions on tess set written to: {}".format(submission_filename))
         dsbutils.complete_action(action, start_time)

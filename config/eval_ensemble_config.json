@@ -7,29 +7,16 @@
     "sanity_basic": false,
     "sanity_augment": false,
     "visualize": true,
-    "seed": 42,
     "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv"
   },
   "misc": {
     "stage": "stage1"
   },
-  "train": {
-    "batch_size": 8,
-    "n_epochs": 120,
-    "lr": 0.001,
-    "weight_decay": 0.002,
-    "momentum": 0.99,
-    "init_weights": true,
-    "weighted_loss": false,
-    "use_gpu": true,
-    "train_full": true,
-    "transformation": "train_transform",
-     "save_model":true
-  },
   "test":
   {
-    "eval":false,
-    "test":true,
+    "ensemble":["/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-01-05-16-10.pth","/home/yoli/kaggle_dsb18/src/predictions/model_2018-02-28-10-08-35.pth"],
+    "eval":true,
+    "test":false,
     "postprocess":true
   }
 

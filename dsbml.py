@@ -10,6 +10,7 @@ import dsbaugment
 from torch.utils.data import DataLoader
 from skimage import filters
 from skimage.measure import label
+from collections import OrderedDict
 
 
 
@@ -195,10 +196,11 @@ def train(dataset, transformation, n_epochs, batch_size,
                                     weight_decay=weight_decay)
         #scheduler = StepLR(optimizer, step_size=20, gamma=0.8)
     else:
+        # betas by default: beta1= 0.9, beta2=0.999
         optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
 
 
-    #betas by default: beta1= 0.9, beta2=0.999
+
 
     #
     for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -242,12 +244,8 @@ def train(dataset, transformation, n_epochs, batch_size,
 
 
 
-def test(unet, dataset, postprocess=True, n_masks_to_collect=10):
-
-    dataset.transform = dsbaugment.transformations.get("test_transform")
-    i = 0
-    examples = {}
-    predictions = {}
+def predict_masks(unet, dataset):
+    raw_predicted_masks = OrderedDict()
     for sample in dataset:
         # apply the model to make predictions for the image
         img = default_collate([sample.get('img')])
@@ -260,35 +258,10 @@ def test(unet, dataset, postprocess=True, n_masks_to_collect=10):
         img_id = sample.get('id')
         original_size = sample.get('size')
         # get the predicted mask (raw, i.e. peobabilities)
-        raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
+        raw_predicted_masks[img_id] = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
+    return raw_predicted_masks
 
 
-
-        if postprocess:
-            if len(np.unique(raw_predicted_mask)) > 1:
-                thresh = filters.threshold_otsu(raw_predicted_mask)
-                predicted_mask = raw_predicted_mask > thresh
-                if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
-                    predicted_mask = 1-predicted_mask
-                predicted_mask = label(predicted_mask)
-            else:
-                predicted_mask = label(raw_predicted_mask > 0.5)
-
-        else:
-            thresh = 0.5
-            predicted_mask = label(raw_predicted_mask > thresh)
-
-
-        pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
-        predictions[img_id] = pred_rles
-        # save a few examples for plotting
-        if i < n_masks_to_collect:
-            examples[img_id] = {'img': dsbaugment.reverse_test_transform(img.data[0].cpu(), original_size),
-                                'raw_predicted_mask':raw_predicted_mask, 'predicted_mask':predicted_mask,
-                                "true_mask":sample.get('labelled_mask')# can be Noe for the test set
-                                }
-        i = i + 1
-    return predictions, examples
 
 def evaluate(predictions, dataset, examples=None):
     sum_avg_precision_iou = 0.0
@@ -303,37 +276,37 @@ def evaluate(predictions, dataset, examples=None):
     mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
 
-def test_ensemble(models_filenames, dataset, postprocess=True, use_gpu=True, n_masks_to_collect=10):
-
+def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=10):
         dataset.transform = dsbaugment.transformations.get("test_transform")
-        i = 0
-        examples = {}
-        predictions = {}
-        models = [(torch.load(f)) for f in models_filenames]
+        raw_predicted_masks = OrderedDict()
         n_models = len(models)
-        for sample in dataset:
-            # apply the model to make predictions for the image
-            img = default_collate([sample.get('img')])
-            if use_gpu:
-                img = Variable(img.cuda())
-            else:
-                img = Variable(img)
-            for i, unet in enumerate(models):
-                if i == 0:
-                    predicted_mask = (unet(img)).data[0].cpu()
+        for unet in models:
+            if requires_loading:
+                unet = torch.load(unet)
+            my_raw_predicted_masks = predict_masks(unet, dataset)
+            for img_id, my_mask in my_raw_predicted_masks.items():
+                mask = raw_predicted_masks.get(img_id)
+                if mask is None:
+                    raw_predicted_masks[img_id] = my_mask
                 else:
-                    predicted_mask = predicted_mask + (unet(img)).data[0].cpu()
-            predicted_mask = predicted_mask/n_models
-            # resize the mask and reverse the transformation
-            img_id = sample.get('id')
-            original_size = sample.get('size')
-            # get the predicted mask (raw, i.e. peobabilities)
-            raw_predicted_mask = dsbaugment.reverse_test_transform(predicted_mask,
-                                                                   original_size)  # predicted mask is now a numpy image again
+                    raw_predicted_masks[img_id] = mask + my_mask
+        i = 0
+        predictions = {}
+        examples = {}
+        for img_id, raw_predicted_mask in raw_predicted_masks.items():
+
+            raw_predicted_mask = raw_predicted_mask/n_models
 
             if postprocess:
-                thresh = filters.threshold_otsu(raw_predicted_mask)
-                predicted_mask = label(raw_predicted_mask > thresh)
+                if len(np.unique(raw_predicted_mask)) > 1:
+                    thresh = filters.threshold_otsu(raw_predicted_mask)
+                    predicted_mask = raw_predicted_mask > thresh
+                    if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
+                        predicted_mask = 1 - predicted_mask
+                    predicted_mask = label(predicted_mask)
+                else:
+                    predicted_mask = label(raw_predicted_mask > 0.5)
+
             else:
                 thresh = 0.5
                 predicted_mask = label(raw_predicted_mask > thresh)
@@ -342,7 +315,10 @@ def test_ensemble(models_filenames, dataset, postprocess=True, use_gpu=True, n_m
             predictions[img_id] = pred_rles
             # save a few examples for plotting
             if i < n_masks_to_collect:
-                examples[img_id] = {'img': dsbaugment.reverse_test_transform(img.data[0].cpu(), original_size),
+                sample = dataset[i]
+                original_size = sample.get('size')
+                img = sample.get('img')
+                examples[img_id] = {'img': dsbaugment.reverse_test_transform(img, original_size),
                                     'raw_predicted_mask': raw_predicted_mask, 'predicted_mask': predicted_mask,
                                     "true_mask": sample.get('labelled_mask')  # can be Noe for the test set
                                     }

@@ -3,8 +3,7 @@
             },
    "actions":{"sanity_basic":true,
               "sanity_augment":true,
-              "visualize":true,
-              "seed":false
+              "visualize":true
              },   
    "misc": {"stage":"stage1"}
 }
