@@ -172,7 +172,8 @@ def batch_collate(batch):
 
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
-                               lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu):
+                               lr, weight_decay, momentum, weighted_loss,
+                               init_weights, use_gpu, optimizer_type):
     # assign the transformations
     dataset.transform = transformation
     train_loader = DataLoader(dataset, batch_size=batch_size,
@@ -185,16 +186,24 @@ def train(dataset, transformation, n_epochs, batch_size,
 
     # define the loss criterion and the optimizer
     criterion = generalized_dice_loss
+    #scheduler = None
+    if optimizer_type is None:
+        optimizer_type = 'adam'
 
-    optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
-                                weight_decay=weight_decay)
+    if optimizer_type == 'sgd':
+        optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
+                                    weight_decay=weight_decay)
+        #scheduler = StepLR(optimizer, step_size=20, gamma=0.8)
+    else:
+        optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
 
-    scheduler = StepLR(optimizer, step_size=15, gamma=0.1)
+
     #betas by default: beta1= 0.9, beta2=0.999
-    #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
+
+    #
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
-        scheduler.step()
+        #scheduler.step()
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
