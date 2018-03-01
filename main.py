@@ -7,7 +7,7 @@ import numpy as np
 import time
 
 
-#TODO: cross validation, read about adam vs sgd and their params, ensemble predictions, documentation, random
+#TODO: cross validation, read about adam vs sgd and their params, ensemble predictions, documentation (delete files etc), random
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
@@ -187,11 +187,11 @@ if __name__ == "__main__":
 
 
         if model_filename is None:
-            batch_size = train_config.get("batch_size")  # 4
-            n_epochs = train_config.get("n_epochs")  # 2
-            lr = train_config.get("lr")  # 1e-04
-            weight_decay = train_config.get("weight_decay")  # 2e-05
-            momentum = train_config.get("momentum")  # 0.9
+            batch_size = train_config.get("batch_size")
+            n_epochs = train_config.get("n_epochs")
+            lr = train_config.get("lr")
+            weight_decay = train_config.get("weight_decay")
+            momentum = train_config.get("momentum")
             init_weights = train_config.get("init_weights")
             weighted_loss = train_config.get("weighted_loss")
             use_gpu = train_config.get("use_gpu")
@@ -200,13 +200,44 @@ if __name__ == "__main__":
             transformation_name = train_config.get("transformation")
             transformation = dsbaugment.transformations.get(transformation_name)
             optimizer = train_config.get('optimizer')
+            hyperparam_search_config = train_config.get("hyperparam_search_config")
 
+            if hyperparam_search_config:
+                # do search for lr and weight_decay (regularization)
+                # we do a random search rather than a grid search as it is more likely to catch the 'good points'
+                # see Begstra and Bengayo 2012
+                lr_log_range = hyperparam_search_config.get("lr_log_range")
+                weight_decay_log_range = hyperparam_search_config.get("weight_decay_log_range")
+                n_search = hyperparam_search_config.get("n_search")
+                best_iou = 0.0
+                best_params = {}
+                for i in xrange(n_search):
+                    action = "search {}".format(i+1)
+                    start_time = dsbutils.start_action(action)
+                    lr = 10**np.random.uniform(lr_log_range[0],lr_log_range[1])
+                    weight_decay = 10**np.random.uniform(weight_decay_log_range[0], weight_decay_log_range[1])
+                    unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                                       lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
+                                       optimizer)
+                    predictions, _ = dsbml.test([unet], valid_dataset, requires_loading, postprocess, n_masks_to_collect=0)
+                    mean_avg_precision_iou = dsbml.evaluate(predictions, valid_dataset)
+                    if mean_avg_precision_iou > best_iou:
+                        best_iou = mean_avg_precision_iou
+                        best_params["search"] = i+1
+                        best_params["lr"] = lr
+                        best_params["weight_decay"] = weight_decay
+                        best_params["iou"] = mean_avg_precision_iou
+                    print("{}/{} lr: {} weight decay: {} IoU: {}".format(i+1, n_search, lr,
+                                                                         weight_decay, mean_avg_precision_iou))
+                    dsbutils.complete_action(action, start_time)
+                print("completed hyper-parameter search, best performance found on search {}: lr: {} weight decay:{} IoU: {}".format(
+                    best_params.get("search"), best_params.get("lr"), best_params.get("weight_decay"), best_params.get("iou")
+                ))
 
-            action = "training a UNet"
-            if train_full:
+            elif train_full:
                 # train the model on the full train set (train + validation)
                 action = "creating the full train dataset"
-                time = dsbutils.start_action(action)
+                start_time = dsbutils.start_action(action)
                 train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
                 print("train size: {}".format(len(train_dataset)))
                 dsbutils.complete_action(action, start_time)
@@ -216,7 +247,9 @@ if __name__ == "__main__":
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer)
                 dsbutils.complete_action(action, start_time)
+
             else: # train without validation set
+                action = "training a UNet"
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,

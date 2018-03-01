@@ -174,7 +174,7 @@ def batch_collate(batch):
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
-                               init_weights, use_gpu, optimizer_type):
+                               init_weights, use_gpu, optimizer_type, verbose = True):
     # assign the transformations
     dataset.transform = transformation
     train_loader = DataLoader(dataset, batch_size=batch_size,
@@ -199,10 +199,6 @@ def train(dataset, transformation, n_epochs, batch_size,
         # betas by default: beta1= 0.9, beta2=0.999
         optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
 
-
-
-
-    #
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
         #scheduler.step()
@@ -235,8 +231,8 @@ def train(dataset, transformation, n_epochs, batch_size,
             loss.backward()
             optimizer.step()
 
-
-        print("epoch {} / {} : mean loss is: {}".format(epoch, n_epochs, mean_epoch_loss/(i+1)))
+        if verbose:
+            print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss/(i+1)))
 
 
 
