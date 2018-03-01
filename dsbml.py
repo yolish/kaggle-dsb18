@@ -38,15 +38,19 @@ def soft_dice_loss(inputs, targets, epsilon = 1):
     return loss / batch_size
 
 
-def generalized_dice_loss(inputs, targets, weights=None):
+def weighted_generalized_dice_loss(inputs, targets, weights=None):
     batch_size = targets.size(0)
     loss = 0.0
 
     for i in xrange(batch_size):
         prob = inputs[i]
         ref = targets[i]
-        intersection_0 = ((1-ref) * (1-prob)).sum()
-        union_0 = ((1-ref) + (1-prob)).sum()
+        if weights is None:
+            intersection_0 = ((1-ref) * (1-prob)).sum()
+            union_0 = ((1-ref) + (1-prob)).sum()
+        else:
+            intersection_0 = (((1 - ref) * (1 - prob)) / weights[i].view(-1)).sum()
+            union_0 = torch.clamp( (((1 - ref) + (1 - prob)) * weights[i].view(-1)), 0.0, 1.0).sum()
         freq_0 = (1-ref).sum()
         w0 = 1 / (freq_0 * freq_0)
 
@@ -58,6 +62,8 @@ def generalized_dice_loss(inputs, targets, weights=None):
         gdl = 1 - 2 * ((intersection_0*w0 + intersection_1*w1)/(w0*union_0+w1*union_1))
         loss = loss + gdl
     return loss/batch_size
+
+
 
 # weighted cross entropy with optional border weights
 def weighted_cross_entropy(inputs, targets, weights=None):
@@ -128,13 +134,13 @@ def calc_avg_precision_iou(pred_rles, true_rles, thrs = np.arange(0.5, 1.0, 0.05
         avg_precision_iou = avg_precision_iou + precision_iou
     return avg_precision_iou/len(thrs)
 
-def calc_expected_iou(labelled_mask, binary_mask):
+def calc_expected_iou(labelled_mask):
     true_rles = dsbutils.get_rles_from_mask(labelled_mask, label_img=False)
-    pred_rles = dsbutils.get_rles_from_mask(binary_mask)
+    pred_rles = dsbutils.get_rles_from_mask(labelled_mask > 0, label_img=True)
     expected_iou = calc_avg_precision_iou(pred_rles, true_rles)
     return expected_iou
 
-def try_add_weight_map(sample, w0=4.0):
+def try_add_weight_map(sample, w0=1.0):
     '''
 
     when the Iou is low, it means that it's hard to label the binary mask, becuase cells are touching
@@ -191,7 +197,7 @@ def train(dataset, transformation, n_epochs, batch_size,
         unet.cuda()
 
     # define the loss criterion and the optimizer
-    criterion = generalized_dice_loss
+    criterion = weighted_generalized_dice_loss
     if optimizer_type is None:
         optimizer_type = 'adam'
 
@@ -217,7 +223,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 2
-    max_batch_size = 30
+    max_batch_size = 40
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
