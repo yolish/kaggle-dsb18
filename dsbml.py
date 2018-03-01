@@ -214,7 +214,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     #https: // arxiv.org / pdf / 1711.00489.pdf dont decay the learning rate, increase batch size
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
-    check_loss_change_freq = 4
+    check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 2
     max_batch_size = 20
@@ -253,6 +253,7 @@ def train(dataset, transformation, n_epochs, batch_size,
             if not reached_max_batch_size:
                 if prev_loss is None:
                     prev_loss = loss.data[0]
+                    loss_change = prev_loss
                 else:
                     loss_change = loss_change + prev_loss-loss.data[0]
 

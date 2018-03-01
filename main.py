@@ -247,16 +247,16 @@ if __name__ == "__main__":
 
                 action = "training a UNet on the full train dataset"
                 start_time = dsbutils.start_action(action)
-                unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
-                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer)
+                unet = [dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer)]
                 dsbutils.complete_action(action, start_time)
 
             else: # train without validation set
                 action = "training a UNet"
                 start_time = dsbutils.start_action(action)
-                unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                unet = [dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                   optimizer)
+                                   optimizer)]
                 dsbutils.complete_action(action, start_time)
 
 
