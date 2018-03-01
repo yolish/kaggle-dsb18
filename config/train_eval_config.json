@@ -7,7 +7,6 @@
     "sanity_basic": false,
     "sanity_augment": false,
     "visualize": true,
-    "seed": 42,
     "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv"
   },
   "misc": {
@@ -15,10 +14,10 @@
   },
   "train": {
     "batch_size": 8,
-    "n_epochs": 80,
-    "lr": 0.001,
-    "weight_decay": 0.002,
-    "momentum": 0.99,
+    "n_epochs": 20,
+    "lr": 0.00013,
+    "weight_decay": 0.00000035,
+    "optimizer":"adam",
     "init_weights": true,
     "weighted_loss": false,
     "use_gpu": true,

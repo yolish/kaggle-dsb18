@@ -22,11 +22,12 @@
     "train_full": false,
     "transformation": "train_transform",
      "save_model":false,
-     "hyperparam_search_config":{
-       "n_search":10,
-       "lr_log_range":[-6,-1],
-       "weight_decay_log_range":[-5,-2]
+     "hyperparam_search_config": {
+       "n_search": 10,
+       "lr_log_range": [-4.6, -4],
+       "weight_decay_log_range": [-7, -6]
      }
+
   }
 
 }
