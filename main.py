@@ -7,7 +7,7 @@ import numpy as np
 import time
 
 
-#TODO: cross validation, read about adam vs sgd and their params, ensemble predictions, documentation (delete files etc), random
+#TODO: read about adam vs sgd and their params, documentation (delete files etc), run many times, random ?
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
@@ -232,6 +232,9 @@ if __name__ == "__main__":
                     dsbutils.complete_action(action, start_time)
                 print("completed hyper-parameter search, best performance found on search {}: lr: {} weight decay:{} IoU: {}".format(
                     best_params.get("search"), best_params.get("lr"), best_params.get("weight_decay"), best_params.get("iou")
+                    # results following coarse and fine searcg:
+                    #  lr: 0.00013
+                    # weight decay: 3.47111926934e-07 (0.00000035)
                 ))
 
             elif train_full:
