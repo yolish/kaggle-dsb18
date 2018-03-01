@@ -168,17 +168,22 @@ def try_add_weight_map(sample, w0=4.0):
 #Note: for train we do data augmentation as part of the transform
 
 def batch_collate(batch):
-    selected_keys = [key for key in ('img', 'binary_mask', 'weight_map') if batch[0].get(key) is not None]
+    selected_keys = ['img', 'binary_mask']
+    return collate_selected(batch, selected_keys)
+
+def weighted_batch_collate(batch):
+    selected_keys = ['img', 'binary_mask', 'weight_map']
+    return collate_selected(batch, selected_keys)
+
+def collate_selected(batch, selected_keys):
+    selected_keys = [key for key in selected_keys if batch[0].get(key) is not None]
     return {key: default_collate([s.get(key) for s in batch]) for key in selected_keys}
+
 
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
                                init_weights, use_gpu, optimizer_type, verbose = True):
-    # assign the transformations
-    dataset.transform = transformation
-    train_loader = DataLoader(dataset, batch_size=batch_size,
-                             shuffle=True, num_workers=8, collate_fn=batch_collate)
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
@@ -187,38 +192,55 @@ def train(dataset, transformation, n_epochs, batch_size,
 
     # define the loss criterion and the optimizer
     criterion = generalized_dice_loss
-    #scheduler = None
     if optimizer_type is None:
         optimizer_type = 'adam'
 
     if optimizer_type == 'sgd':
         optimizer = torch.optim.SGD(unet.parameters(), lr=lr, momentum=momentum,
                                     weight_decay=weight_decay)
-        #scheduler = StepLR(optimizer, step_size=20, gamma=0.8)
     else:
         # betas by default: beta1= 0.9, beta2=0.999
         optimizer = torch.optim.Adam(unet.parameters(), lr=lr, weight_decay=weight_decay)
 
+    # assign the transformations
+    dataset.transform = transformation
+    if weighted_loss:
+        train_loader = DataLoader(dataset, batch_size=batch_size,
+                                  shuffle=True, num_workers=8, collate_fn=weighted_batch_collate)
+    else:
+        train_loader = DataLoader(dataset, batch_size=batch_size,
+                             shuffle=True, num_workers=8, collate_fn=batch_collate)
+
+    #https: // arxiv.org / pdf / 1711.00489.pdf dont decay the learning rate, increase batch size
+    # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
+
+    check_loss_change_freq = 4
+    min_loss_change = 0.01
+    batch_increase_delta = 2
+    max_batch_size = 20
+    prev_loss = None
+    loss_change = 0.0
+    reached_max_batch_size = False
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
-        #scheduler.step()
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs
             imgs = sample_batched.get('img')
             masks = sample_batched.get('binary_mask')
-            weight_maps = sample_batched.get('weight_map')
+
             if use_gpu:
                 imgs, masks = Variable(imgs).cuda(), Variable(masks, requires_grad=False).cuda()
             else:
                 imgs, masks = Variable(imgs), Variable(masks, requires_grad=False)
+            weight_maps = None
             if weighted_loss:
+                weight_maps = sample_batched.get('weight_map')
                 if use_gpu:
                     weight_maps = Variable(weight_maps, requires_grad=False).cuda()
                 else:
                     weight_maps = Variable(weight_maps, requires_grad=False)
-            else:
-                weight_maps = None
+
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -227,9 +249,31 @@ def train(dataset, transformation, n_epochs, batch_size,
             outputs = unet(imgs)
 
             loss = criterion(outputs, masks, weights=weight_maps)
+
+            if not reached_max_batch_size:
+                if prev_loss is None:
+                    prev_loss = loss.data[0]
+                else:
+                    loss_change = loss_change + prev_loss-loss.data[0]
+
             mean_epoch_loss = mean_epoch_loss + loss.data[0]
             loss.backward()
             optimizer.step()
+
+
+        if not reached_max_batch_size and (epoch+1)%check_loss_change_freq== 0:
+            if loss_change/check_loss_change_freq < min_loss_change:
+
+                if batch_size + batch_increase_delta > max_batch_size:
+                    reached_max_batch_size = True
+                    print("reached max batch size")
+                else:
+                    batch_size = batch_size + batch_increase_delta
+                    batch_sampler = torch.utils.data.sampler.BatchSampler(train_loader.sampler, batch_size, False)
+                    train_loader.batch_sampler = batch_sampler
+                    print("increased batch size to {}".format(batch_size))
+            prev_loss = loss.data[0]
+            loss_change = 0.0
 
         if verbose:
             print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss/(i+1)))
