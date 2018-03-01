@@ -217,7 +217,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 2
-    max_batch_size = 20
+    max_batch_size = 30
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
@@ -261,7 +261,8 @@ def train(dataset, transformation, n_epochs, batch_size,
             loss.backward()
             optimizer.step()
 
-
+        if verbose:
+            print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss/(i+1)))
         if not reached_max_batch_size and (epoch+1)%check_loss_change_freq== 0:
             if loss_change/check_loss_change_freq < min_loss_change:
 
@@ -276,8 +277,7 @@ def train(dataset, transformation, n_epochs, batch_size,
             prev_loss = loss.data[0]
             loss_change = 0.0
 
-        if verbose:
-            print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss/(i+1)))
+
 
 
 
@@ -317,13 +317,15 @@ def evaluate(predictions, dataset, examples=None):
     mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
 
-def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=10):
+def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
         dataset.transform = dsbaugment.transformations.get("test_transform")
         raw_predicted_masks = OrderedDict()
         n_models = len(models)
-        for unet in models:
+        for model in models:
             if requires_loading:
-                unet = torch.load(unet)
+                unet = torch.load(model)
+            else:
+                unet = model
             my_raw_predicted_masks = predict_masks(unet, dataset)
             for img_id, my_mask in my_raw_predicted_masks.items():
                 mask = raw_predicted_masks.get(img_id)

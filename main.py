@@ -68,48 +68,6 @@ if __name__ == "__main__":
 
     dsbutils.complete_action(action, start_time)
 
-    '''
-    import matplotlib.pyplot as plt
-    valid_dataset.transform = dsbaugment.transformations.get("train_transform")
-    sample = valid_dataset[3]
-    img = sample.get('img')
-    mask = sample.get('labelled_mask')
-    binary_mask = sample.get("binary_mask")
-    plt.subplot(231)
-
-    plt.imshow(dsbaugment.PIL_torch_to_numpy(img))
-    plt.subplot(232)
-    plt.imshow(mask)
-    plt.subplot(233)
-    plt.imshow(dsbaugment.PIL_torch_to_numpy(binary_mask), cmap='gist_gray')
-
-
-    plt.show()
-    sys.exit(0)
-    '''
-
-    '''
-    from skimage.exposure import adjust_gamma, adjust_sigmoid, rescale_intensity
-    from skimage import img_as_float
-    import matplotlib.pyplot as plt
-    for i in (3,4):
-        sample = valid_dataset[i]
-        img = rescale_intensity(255-sample.get('img'))
-        plt.imshow(img)
-        plt.show()
-        
-        for gamma in np.arange(0.2, 1.8, 0.2):
-            for gain in [1.0]:
-                plt.subplot(121)
-                plt.imshow(img)
-                subplot = plt.subplot(122)
-
-                subplot.set_title("gamma = {}, gain = {}".format(gamma, gain))
-                plt.imshow(adjust_gamma(img, gamma, gain=gain))
-                plt.show()
-    sys.exit(0)
-    '''
-
     if sanity_basic:
         print("performing a basic sanity check")
         dsbutils.plot_imgs(train_dataset, 3, (22, 27))
@@ -247,16 +205,16 @@ if __name__ == "__main__":
 
                 action = "training a UNet on the full train dataset"
                 start_time = dsbutils.start_action(action)
-                unet = [dsbml.train(train_dataset, transformation, n_epochs, batch_size,
-                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer)]
+                unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer)
                 dsbutils.complete_action(action, start_time)
 
             else: # train without validation set
                 action = "training a UNet"
                 start_time = dsbutils.start_action(action)
-                unet = [dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                   optimizer)]
+                                   optimizer)
                 dsbutils.complete_action(action, start_time)
 
 
@@ -271,13 +229,18 @@ if __name__ == "__main__":
 
 
 
-    if (evaluate or test) and unet is None:
-        if model_filename is not None:
-            unet = [torch.load(model_filename)]
-            # take the timestamp from the model name
-            timestamp = model_filename.split("model_")[1].split(".pth")[0]
+    if evaluate or test:
+        if unet is None:
+            if model_filename is not None:
+                unet = [model_filename]
+                # take the timestamp from the model name
+                timestamp = model_filename.split("model_")[1].split(".pth")[0]
+                requires_loading = True
+            else:
+                unet = ensemble
         else:
-            unet = ensemble
+            unet = [unet]
+
 
 
 
@@ -307,7 +270,7 @@ if __name__ == "__main__":
 
         action = "making predictions for the test set"
         start_time = dsbutils.start_action(action)
-        predictions, examples = dsbml.test(unet, test_dataset, requires_loading, postprocess)
+        predictions, examples = dsbml.test(unet, test_dataset, requires_loading, postprocess, n_masks_to_collect=20)
         dsbutils.complete_action(action, start_time)
         # visually evaluate a few images by comparing images and masks
         if visualize:
