@@ -103,10 +103,13 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
 
 def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
     n_cols = 4
-    n_imgs = len(examples)
+    total_n_imgs = len(examples)
     if not plot_true_mask:
         n_cols = 3
     mpl.rcParams.update({'font.size': 6})
+
+    n_imgs = int(total_n_imgs/5)
+
     fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
 
     i = 0
@@ -142,8 +145,13 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
             subplot.axis('off')
             subplot.set_title('True mask')
         i = i + 1
+        if i == n_imgs:
+            i = 0
+            plt.show()
+            fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
 
-    plt.show()
+
+
 
 #endregion
 
