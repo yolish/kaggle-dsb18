@@ -14,7 +14,7 @@
   },
   "test":
   {
-    "model":"/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-01-05-16-10.pth",
+    "model":"/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-07-56-17.pth",
     "eval":false,
     "test":true,
     "postprocess":true

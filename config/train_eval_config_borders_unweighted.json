@@ -6,7 +6,7 @@
   "actions": {
     "sanity_basic": false,
     "sanity_augment": false,
-    "visualize": true,
+    "visualize": false,
     "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv",
     "add_borders":true
   },
@@ -15,12 +15,12 @@
   },
   "train": {
     "batch_size": 8,
-    "n_epochs": 3,
+    "n_epochs": 30,
     "lr": 0.00013,
     "weight_decay": 0.00000035,
     "optimizer":"adam",
     "init_weights": true,
-    "weighted_loss": true,
+    "weighted_loss": false,
     "use_gpu": true,
     "train_full": false,
     "transformation": "train_transform",

@@ -1,5 +1,6 @@
 { "paths":{"input_path":"/home/yoli/kaggle_dsb18/data",
-             "output_path":"/home/yoli/kaggle_dsb18/src/predictions"
+             "output_path":"/home/yoli/kaggle_dsb18/src/predictions/",
+           "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv"
             },
    "actions":{"sanity_basic":true,
               "sanity_augment":true,
