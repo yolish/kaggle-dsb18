@@ -11,7 +11,7 @@ class NucleiDataset(Dataset):
     """Nuclei dataset."""
 
     def __init__(self, type, imgs_df=None, dataset=None,
-                 labels_file=None, transform=None, img_channels=3):
+                 labels_file=None, transform=None, img_channels=3, add_borders_to_mask=True):
         '''
 
         :param imgs_df: a Pandas dataframe with details about the images
@@ -29,6 +29,7 @@ class NucleiDataset(Dataset):
         self.type = type
         self.transform = transform
         self.img_channels = img_channels
+        self.add_borders_to_mask = add_borders_to_mask
 
     def __len__(self):
         return len(self.dataset)
@@ -43,11 +44,11 @@ class NucleiDataset(Dataset):
             mask_paths = img_record['MaskPaths']
             mask = self.combine_masks(mask_paths)
             sample['labelled_mask'] = mask # only used for evaluation and plotting
-            binary_mask, borders = to_binary_mask(mask)
+            binary_mask, borders = to_binary_mask(mask, self.add_borders_to_mask)
             sample['binary_mask'] = binary_mask
             sample['borders'] = borders
             if self.type == 'train':
-                sample['expected_iou'] = calc_expected_iou(mask, binary_mask)
+                sample['expected_iou'] = calc_expected_iou(mask)
 
 
         if self.transform is not None:
@@ -71,7 +72,7 @@ class NucleiDataset(Dataset):
             remaining_idx = [idx for idx in xrange(total_size) if idx not in sampled_idx]
             split_out_dataset = self.dataset.iloc[sampled_idx]
             self.dataset = self.dataset.iloc[remaining_idx]
-        return NucleiDataset(type, dataset=split_out_dataset, transform = transform)
+        return NucleiDataset(type, dataset=split_out_dataset, transform = transform, add_borders_to_mask=self.add_borders_to_mask)
 
     def combine_masks(self, masks_paths):
         # the combined mask has a different label for each mask
