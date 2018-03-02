@@ -7,7 +7,8 @@ import numpy as np
 import time
 
 
-#TODO: read about adam vs sgd and their params, documentation (delete files etc), run many times, random ?
+#TODO: test weighted gdl. documentation (code doc, delete files and old predictions, etc),
+#     run with large number of epochs over all train and do ensemble (bash?), figure out random ?
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
@@ -24,6 +25,10 @@ if __name__ == "__main__":
     visualize = actions_config.get("visualize")
     seed = actions_config.get('seed')
     validation_dataset_filename = actions_config.get('validation_dataset_filename')
+    add_borders_to_mask = actions_config.get('add_borders')
+    if add_borders_to_mask is None:
+        add_borders_to_mask = True
+
 
     train_config = config.get("train")
     test_config = config.get("test")
@@ -56,7 +61,7 @@ if __name__ == "__main__":
     validation_frac = 0.1
     start_time = dsbutils.start_action(action)
     labels_file = os.path.join(dsb_data_path, '{}_train_labels.csv'.format(stage))
-    train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
+    train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file, add_borders_to_mask=add_borders_to_mask)
     if validation_dataset_filename is not None:
         valid_dataset = train_dataset.split(validation_frac, 'validation', filename= validation_dataset_filename)
     else:
@@ -103,7 +108,7 @@ if __name__ == "__main__":
             plt.subplot(232)
             plt.imshow(mask, cmap='gist_gray')
             plt.subplot(233)
-            plt.imshow(borders)
+            plt.imshow(borders, cmap = 'gist_gray')
 
             train_dataset.transform = dsbaugment.transformations.get("toy_transform")
             sample = train_dataset[img_idx]
@@ -111,7 +116,6 @@ if __name__ == "__main__":
             img = sample.get('img')
             mask = sample.get('binary_mask')
             borders = sample.get('borders')
-            weight_map = sample.get('weight_map')
             print("image and binary mask after transformation. Image shape: {}, mask shape: {}".format(img.shape,
                                                                                                         mask.shape))
             plt.subplot(234)
@@ -199,7 +203,7 @@ if __name__ == "__main__":
                 # train the model on the full train set (train + validation)
                 action = "creating the full train dataset"
                 start_time = dsbutils.start_action(action)
-                train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file)
+                train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file, add_borders_to_mask=add_borders_to_mask)
                 print("train size: {}".format(len(train_dataset)))
                 dsbutils.complete_action(action, start_time)
 
@@ -241,11 +245,6 @@ if __name__ == "__main__":
         else:
             unet = [unet]
 
-
-
-
-
-
     if evaluate:
         action = "making predictions for the validation set"
         start_time = dsbutils.start_action(action)
@@ -264,7 +263,7 @@ if __name__ == "__main__":
     if test:
         action = "creating the test set"
         start_time = dsbutils.start_action(action)
-        test_dataset = NucleiDataset('test', imgs_df=imgs_details)
+        test_dataset = NucleiDataset('test', imgs_df=imgs_details, add_borders_to_mask=add_borders_to_mask)
         print("test size: {}".format(len(test_dataset)))
         dsbutils.complete_action(action, start_time)
 
