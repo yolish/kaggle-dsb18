@@ -190,19 +190,11 @@ def reverse_test_transform(img, original_size):
     img = PIL_torch_to_numpy(reverse_transform(img))
     return img
 
-def to_binary_mask(labelled_mask, with_borders = True):
-    borders = None
+def to_binary_mask(labelled_mask, with_borders):
+    mask = (labelled_mask > 0)
     if with_borders:
-        img = np.zeros((labelled_mask.shape[0], labelled_mask.shape[1], 3))
-        borders = mark_boundaries(img, labelled_mask, color=(255,255,255))
-        mask = (labelled_mask > 0)
         mask[find_boundaries(labelled_mask, mode='outer')] = 0
-    else:
-        mask = (labelled_mask > 0)
-
-
-
-
+    borders = (labelled_mask > 0).astype(np.uint8) - mask  # borders of touching cells (if borders are marked)
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
 
@@ -213,6 +205,7 @@ transformations = {
     [
     # turn mask into 3D RGB-Like for PIL and tensor transformation
     TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+    TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     #Elastic deformation on the numpy images
     TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=0.6),
     # Convert borders and mask to 1 channel
@@ -247,6 +240,7 @@ transformations = {
 ),
 "train_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+    TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM, prob=0.5),
@@ -265,6 +259,7 @@ transformations = {
 ),
 "test_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
@@ -280,6 +275,7 @@ transformations = {
 ),
 "toy_transform":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=1.0),
 
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
