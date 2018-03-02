@@ -95,7 +95,7 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
                 subplot.set_title('Borders')
 
             subplot = axes[i][4]
-            subplot.imshow(sample.get('weight_map')[:,:,0], cmap='magma', norm=norm)
+            subplot.imshow(sample.get('weight_map'), cmap='magma', norm=norm)
             subplot.axis('off')
             if i == 0:
                 subplot.set_title('Weight Map')
@@ -193,22 +193,6 @@ def get_rles_from_df(imgs_df, img_id):
     rles = (imgs_df[imgs_df['ImageId'] == img_id]['EncodedPixels']).values[0]
     return sorted(rles, key = lambda x: x[0])
 
-
-'''
-def compute_weight_map(labelled_mask):
-    shape = labelled_mask.shape
-    weight_map = np.zeros(shape)
-    n_labels = np.max(labelled_mask) + 1
-    for label in xrange(1, n_labels+1):
-        
-    for i in xrange(0, shape[0]):
-        for j in xrange(0, shape[1]):
-            my_label = labelled_mask[i,j]
-            temp = labelled_mask[labelled_mask != my_label]
-'''
-
-
-
 def get_rles_from_mask(labelled_img, label_img = False):
     '''
     :param labelled_img: the image with the segmented objects; integer np array of shape (hight_, width)
@@ -230,9 +214,6 @@ def get_rles_from_mask(labelled_img, label_img = False):
         rles.append(rle)
     return sorted(rles, key = lambda x: x[0])
 #endregion
-
-
-
 
 
 #region post-processing for submission #
