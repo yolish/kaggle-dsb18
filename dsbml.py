@@ -11,9 +11,6 @@ from torch.utils.data import DataLoader
 from skimage import filters
 from skimage.measure import label
 from collections import OrderedDict
-
-
-
 #region loss functions
 # Aside:
 # comparison between DICE and IOU: https://stats.stackexchange.com/questions/273537/f1-dice-score-vs-iou
@@ -49,8 +46,8 @@ def weighted_generalized_dice_loss(inputs, targets, weights=None):
             intersection_0 = ((1-ref) * (1-prob)).sum()
             union_0 = ((1-ref) + (1-prob)).sum()
         else:
-            intersection_0 = (((1 - ref) * (1 - prob)) / weights[i].view(-1)).sum()
-            union_0 = torch.clamp( (((1 - ref) + (1 - prob)) * weights[i].view(-1)), 0.0, 1.0).sum()
+            intersection_0 = (((1 - ref) * (1 - prob)) / weights[i]).sum()
+            union_0 = ((1 - ref) + (1 - prob)).sum()
         freq_0 = (1-ref).sum()
         w0 = 1 / (freq_0 * freq_0)
 
@@ -140,7 +137,7 @@ def calc_expected_iou(labelled_mask):
     expected_iou = calc_avg_precision_iou(pred_rles, true_rles)
     return expected_iou
 
-def try_add_weight_map(sample, w0=1.0):
+def try_add_weight_map(sample):
     '''
 
     when the Iou is low, it means that it's hard to label the binary mask, becuase cells are touching
@@ -149,6 +146,7 @@ def try_add_weight_map(sample, w0=1.0):
     :param w0:
     :return:
     '''
+    w0 = 1.0
     expected_iou = sample.get('expected_iou')
     borders = sample.get('borders')
     if expected_iou is not None and borders is not None:
@@ -223,7 +221,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 2
-    max_batch_size = 40
+    max_batch_size = 30
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
@@ -282,11 +280,6 @@ def train(dataset, transformation, n_epochs, batch_size,
                     print("increased batch size to {}".format(batch_size))
             prev_loss = loss.data[0]
             loss_change = 0.0
-
-
-
-
-
     return unet
 
 
@@ -306,6 +299,7 @@ def predict_masks(unet, dataset):
         original_size = sample.get('size')
         # get the predicted mask (raw, i.e. peobabilities)
         raw_predicted_masks[img_id] = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
+
     return raw_predicted_masks
 
 
@@ -339,6 +333,7 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
                     raw_predicted_masks[img_id] = my_mask
                 else:
                     raw_predicted_masks[img_id] = mask + my_mask
+
         i = 0
         predictions = {}
         examples = {}
@@ -348,17 +343,50 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
 
             if postprocess:
                 if len(np.unique(raw_predicted_mask)) > 1:
+
                     thresh = filters.threshold_otsu(raw_predicted_mask)
-                    predicted_mask = raw_predicted_mask > thresh
+                    predicted_mask = (raw_predicted_mask > thresh).astype(np.uint8)
                     if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                         predicted_mask = 1 - predicted_mask
                     predicted_mask = label(predicted_mask)
+
+                    '''
+                    import cv2
+                    from skimage.color import gray2rgb, rgb2gray
+                    #apply watershed from: https: // docs.opencv.org / 3.1.0 / d3 / db4 / tutorial_py_watershed.html
+                    #ret, thresh = cv2.threshold((predicted_mask*255).astype(np.unit8), 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                    #print(thresh)
+                    # noise removal
+                    #predicted_mask = (raw_predicted_mask*255).astype(np.uint8)
+                    #ret, predicted_mask = cv2.threshold(predicted_mask, 0, 255,
+                    #                            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                    kernel = np.ones((6, 6), np.uint8)
+                    opening = cv2.morphologyEx(predicted_mask, cv2.MORPH_OPEN, kernel, iterations=2)
+                    # sure background area
+                    sure_bg = cv2.dilate(opening, kernel, iterations=3)
+                     # Finding sure foreground area
+                    dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+                    ret, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 1, 0)
+                    # Finding unknown region
+                    sure_fg = np.uint8(sure_fg)
+                    unknown = cv2.subtract(sure_bg, sure_fg)
+                    # Marker labelling
+                    ret, markers = cv2.connectedComponents(sure_fg)
+                    # Add one to all labels so that sure background is not 0, but 1
+                    markers = markers + 1
+                    # Now, mark the region of unknown with zero
+                    markers[unknown == 255] = 0
+                    markers = cv2.watershed(gray2rgb(predicted_mask), markers)
+                    markers[markers ==-1] = 0
+                    predicted_mask = rgb2gray(markers)
+
+                    '''
                 else:
                     predicted_mask = label(raw_predicted_mask > 0.5)
-
             else:
                 thresh = 0.5
                 predicted_mask = label(raw_predicted_mask > thresh)
+
 
             pred_rles = dsbutils.get_rles_from_mask(predicted_mask)
             predictions[img_id] = pred_rles
