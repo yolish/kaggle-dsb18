@@ -9,8 +9,11 @@ from torch.utils.data.dataloader import default_collate
 import dsbaugment
 from torch.utils.data import DataLoader
 from skimage import filters
-from skimage.measure import label
+from skimage.measure import label, regionprops
 from collections import OrderedDict
+from skimage.segmentation import relabel_sequential
+
+
 #region loss functions
 # Aside:
 # comparison between DICE and IOU: https://stats.stackexchange.com/questions/273537/f1-dice-score-vs-iou
@@ -260,6 +263,7 @@ def train(dataset, transformation, n_epochs, batch_size,
                     loss_change = prev_loss
                 else:
                     loss_change = loss_change + prev_loss-loss.data[0]
+                    prev_loss = loss.data[0]
 
             mean_epoch_loss = mean_epoch_loss + loss.data[0]
             loss.backward()
@@ -349,37 +353,16 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
                     if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                         predicted_mask = 1 - predicted_mask
                     predicted_mask = label(predicted_mask)
-
                     '''
-                    import cv2
-                    from skimage.color import gray2rgb, rgb2gray
-                    #apply watershed from: https: // docs.opencv.org / 3.1.0 / d3 / db4 / tutorial_py_watershed.html
-                    #ret, thresh = cv2.threshold((predicted_mask*255).astype(np.unit8), 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                    #print(thresh)
-                    # noise removal
-                    #predicted_mask = (raw_predicted_mask*255).astype(np.uint8)
-                    #ret, predicted_mask = cv2.threshold(predicted_mask, 0, 255,
-                    #                            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-                    kernel = np.ones((6, 6), np.uint8)
-                    opening = cv2.morphologyEx(predicted_mask, cv2.MORPH_OPEN, kernel, iterations=2)
-                    # sure background area
-                    sure_bg = cv2.dilate(opening, kernel, iterations=3)
-                     # Finding sure foreground area
-                    dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
-                    ret, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 1, 0)
-                    # Finding unknown region
-                    sure_fg = np.uint8(sure_fg)
-                    unknown = cv2.subtract(sure_bg, sure_fg)
-                    # Marker labelling
-                    ret, markers = cv2.connectedComponents(sure_fg)
-                    # Add one to all labels so that sure background is not 0, but 1
-                    markers = markers + 1
-                    # Now, mark the region of unknown with zero
-                    markers[unknown == 255] = 0
-                    markers = cv2.watershed(gray2rgb(predicted_mask), markers)
-                    markers[markers ==-1] = 0
-                    predicted_mask = rgb2gray(markers)
+                    regions = regionprops(predicted_mask)
+                    relabel = False
 
+                    for region in regions:
+                        if region.eccentricity > 0.98:
+                            predicted_mask[predicted_mask == region.label] = 0
+                            relabel = True
+                    if relabel:
+                        predicted_mask, _, _ = relabel_sequential(predicted_mask)
                     '''
                 else:
                     predicted_mask = label(raw_predicted_mask > 0.5)
