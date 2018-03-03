@@ -8,7 +8,7 @@
     "sanity_augment": false,
     "visualize": false,
     "validation_dataset_filename": "/home/yoli/kaggle_dsb18/src/predictions/validation_dataset_2018-02-26-13-05-53.csv",
-    "add_borders":true
+    "add_borders":false
   },
   "misc": {
     "stage": "stage1"
@@ -18,19 +18,18 @@
     "n_epochs": 50,
     "lr": 0.00013,
     "weight_decay": 0.00000035,
-
     "optimizer":"adam",
     "init_weights": true,
-    "weighted_loss": true,
+    "weighted_loss": false,
     "use_gpu": true,
     "train_full": true,
-    "transformation": "train_transform",
+    "transformation": "train_transform_jitter",
      "save_model":true
   },
   "test":
   {
     "eval":true,
-    "test":false,
+    "test":true,
     "postprocess":true
   }
 

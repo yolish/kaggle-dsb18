@@ -15,21 +15,21 @@
   },
   "train": {
     "batch_size": 8,
-    "n_epochs": 30,
+    "n_epochs": 50,
     "lr": 0.00013,
     "weight_decay": 0.00000035,
     "optimizer":"adam",
     "init_weights": true,
     "weighted_loss": false,
     "use_gpu": true,
-    "train_full": false,
+    "train_full": true,
     "transformation": "train_transform",
      "save_model":true
   },
   "test":
   {
     "eval":true,
-    "test":false,
+    "test":true,
     "postprocess":true
   }
 

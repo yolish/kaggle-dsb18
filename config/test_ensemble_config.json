@@ -14,10 +14,11 @@
   },
   "test":
   {
-    "ensemble":["/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-01-05-16-10.pth","/home/yoli/kaggle_dsb18/src/predictions/model_2018-02-28-10-08-35.pth"],
+    "ensemble":["/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-18-19-31.pth",
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-17-30-39.pth","/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-16-42-34.pth"],
     "eval":false,
     "test":true,
-    "postprocess":true
+    "postprocess":false
   }
 
 }

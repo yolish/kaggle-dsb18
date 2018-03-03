@@ -24,13 +24,13 @@
     "weighted_loss": true,
     "use_gpu": true,
     "train_full": true,
-    "transformation": "train_transform",
+    "transformation": "train_transform_jitter",
      "save_model":true
   },
   "test":
   {
     "eval":true,
-    "test":false,
+    "test":true,
     "postprocess":true
   }
 
