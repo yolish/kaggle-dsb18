@@ -91,7 +91,7 @@ class ElasticTransform(object):
     alpha: scaling facor - positive float giving the intensity of the transformation. Larger alphas require larger sigmas
     default values take from the paper
     '''
-    def __init__(self, sigma=4.0, alpha=34.0):
+    def __init__(self, sigma=2.0, alpha=17.0):
         '''
 
         :param sigma: positive floaf giving the elasticity of the transformation
@@ -207,17 +207,18 @@ transformations = {
     TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
     TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     #Elastic deformation on the numpy images
-    TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=0.6),
+    TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=0.8),
     # Convert borders and mask to 1 channel
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
+    # color jittering (image only)
+    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM, prob=0.9),
+    TransformSpec(Negative(), IMG_ONLY_TRANSFORM, prob=0.5),
     # turn into a PIL image - required to apply torch transforms (both image, mask and borders)
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     # flipping
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.5),
-    # color jittering (image only)
-    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM, prob=0.9),
-    TransformSpec(Negative(), IMG_ONLY_TRANSFORM, prob=0.5),
+
     #resize image (bilinear interpolation)
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
