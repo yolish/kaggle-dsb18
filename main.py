@@ -25,6 +25,9 @@ if __name__ == "__main__":
     visualize = actions_config.get("visualize")
     seed = actions_config.get('seed')
     validation_dataset_filename = actions_config.get('validation_dataset_filename')
+    use_borders_as_mask = actions_config.get('use_borders_as_mask')
+    if use_borders_as_mask is None:
+        use_borders_as_mask = False
     add_borders_to_mask = actions_config.get('add_borders')
     if add_borders_to_mask is None:
         add_borders_to_mask = True
@@ -61,7 +64,8 @@ if __name__ == "__main__":
     validation_frac = 0.1
     start_time = dsbutils.start_action(action)
     labels_file = os.path.join(dsb_data_path, '{}_train_labels.csv'.format(stage))
-    train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file, add_borders_to_mask=add_borders_to_mask)
+    train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file,
+                                  add_borders_to_mask=add_borders_to_mask, use_borders_as_mask=use_borders_as_mask)
     if validation_dataset_filename is not None:
         valid_dataset = train_dataset.split(validation_frac, 'validation', filename= validation_dataset_filename)
     else:
@@ -132,12 +136,15 @@ if __name__ == "__main__":
     postprocess = False
     unet = None
     requires_loading = False
+    borders_model_filename = None
     if test_config is not None:
         evaluate = test_config.get("eval")
         test = test_config.get("test")
         postprocess = test_config.get("postprocess")
         model_filename = test_config.get("model")
         ensemble = test_config.get("ensemble")
+        borders_model_filename = test_config.get("borders_model_filename")
+
         if ensemble is not None:
             requires_loading = True
 
@@ -203,7 +210,8 @@ if __name__ == "__main__":
                 # train the model on the full train set (train + validation)
                 action = "creating the full train dataset"
                 start_time = dsbutils.start_action(action)
-                train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file, add_borders_to_mask=add_borders_to_mask)
+                train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file,
+                                              add_borders_to_mask=add_borders_to_mask, use_borders_as_mask=use_borders_as_mask)
                 print("train size: {}".format(len(train_dataset)))
                 dsbutils.complete_action(action, start_time)
 
@@ -248,7 +256,8 @@ if __name__ == "__main__":
     if evaluate:
         action = "making predictions for the validation set"
         start_time = dsbutils.start_action(action)
-        predictions, examples = dsbml.test(unet, valid_dataset, requires_loading, postprocess)
+        predictions, examples = dsbml.test(unet, valid_dataset, requires_loading, postprocess,
+                                           borders_model_filename=borders_model_filename)
         dsbutils.complete_action(action, start_time)
 
         action = "evaluating predictions"
@@ -269,7 +278,8 @@ if __name__ == "__main__":
 
         action = "making predictions for the test set"
         start_time = dsbutils.start_action(action)
-        predictions, examples = dsbml.test(unet, test_dataset, requires_loading, postprocess, n_masks_to_collect=20)
+        predictions, examples = dsbml.test(unet, test_dataset, requires_loading, postprocess,
+                                           n_masks_to_collect=20, borders_model_filename=borders_model_filename)
         dsbutils.complete_action(action, start_time)
         # visually evaluate a few images by comparing images and masks
         if visualize:

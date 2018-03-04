@@ -190,11 +190,17 @@ def reverse_test_transform(img, original_size):
     img = PIL_torch_to_numpy(reverse_transform(img))
     return img
 
-def to_binary_mask(labelled_mask, with_borders):
-    mask = (labelled_mask > 0)
-    if with_borders:
-        mask[find_boundaries(labelled_mask, mode='outer')] = 0
+def to_binary_mask(labelled_mask, with_borders, use_borders_as_mask):
+
+    if use_borders_as_mask:
+        mask = find_boundaries(labelled_mask, mode='outer')
+    else:
+        mask = (labelled_mask > 0)
+        if with_borders:
+            mask[find_boundaries(labelled_mask, mode='outer')] = 0
+
     borders = (labelled_mask > 0).astype(np.uint8) - mask  # borders of touching cells (if borders are marked)
+
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
 

@@ -11,7 +11,7 @@ class NucleiDataset(Dataset):
     """Nuclei dataset."""
 
     def __init__(self, type, imgs_df=None, dataset=None,
-                 labels_file=None, transform=None, img_channels=3, add_borders_to_mask=True):
+                 labels_file=None, transform=None, img_channels=3, add_borders_to_mask=True,  use_borders_as_mask=False):
         '''
 
         :param imgs_df: a Pandas dataframe with details about the images
@@ -30,6 +30,7 @@ class NucleiDataset(Dataset):
         self.transform = transform
         self.img_channels = img_channels
         self.add_borders_to_mask = add_borders_to_mask
+        self.use_borders_as_mask = use_borders_as_mask
 
     def __len__(self):
         return len(self.dataset)
@@ -44,7 +45,7 @@ class NucleiDataset(Dataset):
             mask_paths = img_record['MaskPaths']
             mask = self.combine_masks(mask_paths)
             sample['labelled_mask'] = mask # only used for evaluation and plotting
-            binary_mask, borders = to_binary_mask(mask, self.add_borders_to_mask)
+            binary_mask, borders = to_binary_mask(mask, self.add_borders_to_mask, self.use_borders_as_mask)
             sample['binary_mask'] = binary_mask
             sample['borders'] = borders
             if self.type == 'train':

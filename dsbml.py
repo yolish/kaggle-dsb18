@@ -321,12 +321,20 @@ def evaluate(predictions, dataset, examples=None):
     mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
 
-def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
+def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, borders_model_filename=None):
         dataset.transform = dsbaugment.transformations.get("test_transform")
         raw_predicted_masks = OrderedDict()
+        raw_predicted_borders = OrderedDict()
+
         n_models = len(models)
-        for model in models:
-            if requires_loading:
+
+        apply_borders_prediction = False
+        if borders_model_filename is not None:
+            models.append(borders_model_filename)
+            apply_borders_prediction = True
+
+        for k, model in enumerate(models):
+            if requires_loading or (apply_borders_prediction and k == n_models):
                 unet = torch.load(model)
             else:
                 unet = model
@@ -336,7 +344,10 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
                 if mask is None:
                     raw_predicted_masks[img_id] = my_mask
                 else:
-                    raw_predicted_masks[img_id] = mask + my_mask
+                    if apply_borders_prediction and k == n_models:
+                        raw_predicted_borders[img_id] = my_mask
+                    else:
+                        raw_predicted_masks[img_id] = mask + my_mask
 
         i = 0
         predictions = {}
@@ -344,6 +355,7 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
         for img_id, raw_predicted_mask in raw_predicted_masks.items():
 
             raw_predicted_mask = raw_predicted_mask/n_models
+            raw_predicted_border = raw_predicted_borders.get(img_id)
 
             if postprocess:
                 if len(np.unique(raw_predicted_mask)) > 1:
@@ -352,15 +364,27 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15):
                     predicted_mask = (raw_predicted_mask > thresh).astype(np.uint8)
                     if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                         predicted_mask = 1 - predicted_mask
+
+
+                    if raw_predicted_border is not None:
+                        thresh = filters.threshold_otsu(raw_predicted_border)
+                        predicted_border = raw_predicted_border > thresh
+                        predicted_mask[predicted_border == 1] = 0
+
                     predicted_mask = label(predicted_mask)
+
+
+
                     '''
                     regions = regionprops(predicted_mask)
                     relabel = False
 
                     for region in regions:
-                        if region.eccentricity > 0.98:
+                        if region.eccentricity > 0.99:
                             predicted_mask[predicted_mask == region.label] = 0
                             relabel = True
+                            print (label)
+                            print(eccentricity)
                     if relabel:
                         predicted_mask, _, _ = relabel_sequential(predicted_mask)
                     '''
