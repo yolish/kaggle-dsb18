@@ -23,7 +23,7 @@
     "weighted_loss": false,
     "use_gpu": true,
     "train_full": true,
-    "transformation": "train_transform",
+    "transformation": "train_transform_elastic",
      "save_model":true
   },
   "test":

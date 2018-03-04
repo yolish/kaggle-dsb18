@@ -18,12 +18,13 @@
     "n_epochs": 50,
     "lr": 0.00013,
     "weight_decay": 0.00000035,
+
     "optimizer":"adam",
     "init_weights": true,
-    "weighted_loss": false,
+    "weighted_loss": true,
     "use_gpu": true,
     "train_full": true,
-    "transformation": "train_transform",
+    "transformation": "train_transform_elastic",
      "save_model":true
   },
   "test":

@@ -14,11 +14,20 @@
   },
   "test":
   {
-    "ensemble":["/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-18-19-31.pth",
-      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-17-30-39.pth","/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-16-42-34.pth"],
+    "ensemble":["/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-08-07-46.pth",
+"/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-05-52-56.pth",
+"/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-03-35-37.pth",
+  "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-01-27-40.pth",
+  "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-23-12-48.pth",
+  "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-02-20-53-13.pth",
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-17-52-30.pth",
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-14-11-02.pth",
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-04-03-04-38.pth",
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-03-22-22-47.pth"
+],
     "eval":false,
     "test":true,
-    "postprocess":false
+    "postprocess":true
   }
 
 }
