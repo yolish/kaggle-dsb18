@@ -366,21 +366,25 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
         examples = {}
         for img_id, raw_predicted_mask in raw_predicted_masks.items():
 
-            raw_predicted_mask = raw_predicted_mask/n_models
-            raw_predicted_border = raw_predicted_borders.get(img_id)
+
+
 
             if postprocess:
                 if len(np.unique(raw_predicted_mask)) > 1:
+
+                    raw_predicted_border = raw_predicted_borders.get(img_id)
+                    if raw_predicted_border is not None:
+                        mean_raw_predicted_border = raw_predicted_border / n_border_models
+                        thresh = filters.threshold_otsu(mean_raw_predicted_border)
+                        indices = np.where(mean_raw_predicted_border > thresh)
+                        raw_predicted_mask[indices] = raw_predicted_mask[indices] + 11-raw_predicted_border[indices]
+
+                    raw_predicted_mask = raw_predicted_mask / (n_models + n_border_models)
 
                     thresh = filters.threshold_otsu(raw_predicted_mask)
                     predicted_mask = (raw_predicted_mask > thresh).astype(np.uint8)
                     if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                         predicted_mask = 1 - predicted_mask
-
-                    if raw_predicted_border is not None:
-                        raw_predicted_border = raw_predicted_border/n_border_models
-                        thresh = filters.threshold_otsu(raw_predicted_border)
-                        raw_predicted_mask[raw_predicted_border > thresh] = 0
 
                     predicted_mask = label(predicted_mask)
 
@@ -400,8 +404,10 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
 
 
                 else:
+                    raw_predicted_mask = raw_predicted_mask / n_models
                     predicted_mask = label(raw_predicted_mask > 0.5)
             else:
+                raw_predicted_mask = raw_predicted_mask / n_models
                 thresh = 0.5
                 predicted_mask = label(raw_predicted_mask > thresh)
 
