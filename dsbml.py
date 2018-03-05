@@ -329,12 +329,20 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
         n_models = len(models)
 
         apply_borders_prediction = False
+        n_border_models = 0
         if borders_model_filename is not None:
-            models.append(borders_model_filename)
+            if isinstance(borders_model_filename, basestring):
+                models.append(borders_model_filename)
+                n_border_models = 1
+            else:
+                for f in borders_model_filename:
+                    models.append(f)
+                    n_border_models = n_border_models + 1
+
             apply_borders_prediction = True
 
         for k, model in enumerate(models):
-            if requires_loading or (apply_borders_prediction and k == n_models):
+            if requires_loading or (apply_borders_prediction and k >= n_models):
                 unet = torch.load(model)
             else:
                 unet = model
@@ -344,8 +352,12 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                 if mask is None:
                     raw_predicted_masks[img_id] = my_mask
                 else:
-                    if apply_borders_prediction and k == n_models:
-                        raw_predicted_borders[img_id] = my_mask
+                    if apply_borders_prediction and k >= n_models:
+                        border_mask = raw_predicted_borders.get(img_id)
+                        if border_mask is None:
+                            raw_predicted_borders[img_id] = my_mask
+                        else:
+                            raw_predicted_borders[img_id] = border_mask + my_mask
                     else:
                         raw_predicted_masks[img_id] = mask + my_mask
 
@@ -365,29 +377,28 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                     if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                         predicted_mask = 1 - predicted_mask
 
-
                     if raw_predicted_border is not None:
+                        raw_predicted_border = raw_predicted_border/n_border_models
                         thresh = filters.threshold_otsu(raw_predicted_border)
-                        predicted_border = raw_predicted_border > thresh
-                        predicted_mask[predicted_border == 1] = 0
+                        raw_predicted_mask[raw_predicted_border > thresh] = 0
 
                     predicted_mask = label(predicted_mask)
-
-
 
                     '''
                     regions = regionprops(predicted_mask)
                     relabel = False
 
                     for region in regions:
-                        if region.eccentricity > 0.99:
+                        if region.eccentricity > 0.98 and region.area > 500:
                             predicted_mask[predicted_mask == region.label] = 0
                             relabel = True
-                            print (label)
-                            print(eccentricity)
+
+
                     if relabel:
-                        predicted_mask, _, _ = relabel_sequential(predicted_mask)
+                        predicted_mask, forward, inv = relabel_sequential(predicted_mask)
                     '''
+
+
                 else:
                     predicted_mask = label(raw_predicted_mask > 0.5)
             else:
