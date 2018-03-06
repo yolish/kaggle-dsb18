@@ -279,7 +279,7 @@ if __name__ == "__main__":
         action = "making predictions for the test set"
         start_time = dsbutils.start_action(action)
         predictions, examples = dsbml.test(unet, test_dataset, requires_loading, postprocess,
-                                           n_masks_to_collect=20, borders_model_filename=borders_model_filename)
+                                           n_masks_to_collect=30, borders_model_filename=borders_model_filename)
         dsbutils.complete_action(action, start_time)
         # visually evaluate a few images by comparing images and masks
         if visualize:
