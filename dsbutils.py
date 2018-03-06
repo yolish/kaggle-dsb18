@@ -79,7 +79,7 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
             subplot.set_title('Image')
         if plot_mask:
             subplot = axes[i][1]
-            subplot.imshow(sample.get('labelled_mask'), cmap='magma')
+            subplot.imshow(sample.get('labelled_mask'), cmap='nipy_spectral')
             subplot.axis('off')
             if i == 0:
                 subplot.set_title('Labelled Mask')
@@ -95,7 +95,7 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
                 subplot.set_title('Borders')
 
             subplot = axes[i][4]
-            subplot.imshow(sample.get('weight_map'), cmap='magma', norm=norm)
+            subplot.imshow(sample.get('weight_map'), cmap='nipy_spectral', norm=norm)
             subplot.axis('off')
             if i == 0:
                 subplot.set_title('Weight Map')
@@ -127,12 +127,12 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
         subplot.set_title('Image')
 
         subplot = axes[i][1]
-        subplot.imshow(raw_predicted_mask, cmap='magma')
+        subplot.imshow(raw_predicted_mask, cmap='nipy_spectral')
         subplot.axis('off')
         subplot.set_title('Raw Mask')
 
         subplot = axes[i][2]
-        subplot.imshow(predicted_mask, cmap='magma')
+        subplot.imshow(predicted_mask, cmap='nipy_spectral')
         subplot.axis('off')
         if iou is not None:
             subplot.set_title('Mask (IoU: {:.3f}'.format(iou))
@@ -141,7 +141,7 @@ def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
 
         if plot_true_mask and true_mask is not None:
             subplot = axes[i][3]
-            subplot.imshow(true_mask, cmap='magma')
+            subplot.imshow(true_mask, cmap='nipy_spectral')
             subplot.axis('off')
             subplot.set_title('True mask')
         i = i + 1
