@@ -6,10 +6,11 @@ from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 from skimage.segmentation import mark_boundaries, find_boundaries
 from skimage.exposure import adjust_gamma, rescale_intensity
+import random
 
 
 
-IMG_SIZE = 256
+IMG_SIZE = 128
 
 
 class TransformSpec:
@@ -48,7 +49,7 @@ class Flip(object):
 class JitterBrightness(object):
     def __call__(self, img):
         # img is a numpy rgb image
-        gamma = np.random.random() + 0.3
+        gamma = random.random() + 0.3
         return adjust_gamma(img, gamma)
 
 class Negative(object):
@@ -139,9 +140,10 @@ class ElasticTransform(object):
         n_dim = len(shape)
         convolved_displacement_fields = []
         grid = []
+        fsize = len(img.flatten())
         for i in xrange(n_dim):
             if i < 2:  # don't touch the channel
-                cdf = (np.random.random(shape) * 2 - 1)
+                cdf = np.array([random.random() for j in xrange(fsize)]).reshape(shape) * 2 - 1
                 convolved_displacement_fields.append(
                     gaussian_filter(cdf, self.sigma, mode="constant", cval=0) * self.alpha)
             grid.append(np.arange(shape[i]))
@@ -317,6 +319,8 @@ TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 )
 }
+
+
 
 
 
