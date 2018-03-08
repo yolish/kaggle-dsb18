@@ -3,8 +3,15 @@ import random
 import json
 import sys
 import datetime
-import numpy as np
 import time
+from NucleiDataset import NucleiDataset
+import dsbutils
+import dsbml
+import dsbaugment
+import torch
+
+
+
 
 
 #TODO: test weighted gdl. documentation (code doc, delete files and old predictions, etc),
@@ -39,18 +46,12 @@ if __name__ == "__main__":
     stage = misc_config.get("stage")
 
     if seed is not None:
-        # seed all random instances
-        np.random.seed(seed)
-        random.seed(seed)
-    import torch
-    if seed is not None:
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
 
-    from NucleiDataset import NucleiDataset
-    import dsbutils
-    import dsbml
-    import dsbaugment
+        torch.manual_seed(seed)
+        torch.backends.cudnn.deternimistic = True  # we assume here gpu is enabled
+        torch.cuda.manual_seed(seed)
+        random.seed(seed)
+
 
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -183,8 +184,8 @@ if __name__ == "__main__":
                 for i in xrange(n_search):
                     action = "search {}".format(i+1)
                     start_time = dsbutils.start_action(action)
-                    lr = 10**np.random.uniform(lr_log_range[0],lr_log_range[1])
-                    weight_decay = 10**np.random.uniform(weight_decay_log_range[0], weight_decay_log_range[1])
+                    lr = 10**random.uniform(lr_log_range[0],lr_log_range[1])
+                    weight_decay = 10**random.uniform(weight_decay_log_range[0], weight_decay_log_range[1])
                     unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                        lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
                                        optimizer)
@@ -236,7 +237,7 @@ if __name__ == "__main__":
                 print("model written to to: {}".format(model_filename))
                 model_metatdata_filename = dsb_output_path + "model_config_" + timestamp + ".txt"
                 with open(model_metatdata_filename, 'w') as f:
-                    f.write(json.dumps({"model_config":train_config}))
+                    f.write(json.dumps({"model_config":config}))
                 print("model metadata written to to: {}".format(model_metatdata_filename))
 
 
