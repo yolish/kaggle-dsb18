@@ -1,5 +1,5 @@
 import pandas as pd
-import numpy as np
+import random
 from skimage.io import imread
 from dsbutils import collect_dataset
 from dsbaugment import to_binary_mask
@@ -67,10 +67,9 @@ class NucleiDataset(Dataset):
             split_out_dataset = self.dataset.loc[self.dataset['ImageId'].isin(img_ids)]
             self.dataset = self.dataset.loc[~self.dataset['ImageId'].isin(img_ids)]
         else:
-            total_size = self.__len__()
-            sample_size = int(total_size*frac)
-            sampled_idx = np.random.choice(total_size, replace=False, size=sample_size)
-            remaining_idx = [idx for idx in xrange(total_size) if idx not in sampled_idx]
+            sample_size = int(self.__len__()*frac)
+            sampled_idx = random.sample(xrange(self.__len__()), sample_size)
+            remaining_idx = [idx for idx in xrange(self.__len__()) if idx not in sampled_idx]
             split_out_dataset = self.dataset.iloc[sampled_idx]
             self.dataset = self.dataset.iloc[remaining_idx]
         return NucleiDataset(type, dataset=split_out_dataset, transform = transform, add_borders_to_mask=self.add_borders_to_mask)
