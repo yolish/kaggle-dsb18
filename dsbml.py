@@ -211,20 +211,22 @@ def train(dataset, transformation, n_epochs, batch_size,
 
     # assign the transformations
     dataset.transform = transformation
+    num_workers = 4
+    do_shuffle = True
     if weighted_loss:
         train_loader = DataLoader(dataset, batch_size=batch_size,
-                                  shuffle=True, num_workers=8, collate_fn=weighted_batch_collate)
+                                  shuffle=do_shuffle, num_workers=num_workers, collate_fn=weighted_batch_collate)
     else:
         train_loader = DataLoader(dataset, batch_size=batch_size,
-                             shuffle=True, num_workers=8, collate_fn=batch_collate)
+                             shuffle=do_shuffle, num_workers=num_workers, collate_fn=batch_collate)
 
     #https: // arxiv.org / pdf / 1711.00489.pdf dont decay the learning rate, increase batch size
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
     check_loss_change_freq = 3
-    min_loss_change = 0.01
-    batch_increase_delta = 2
-    max_batch_size = 30
+    min_loss_change = 0.025
+    batch_increase_delta = 4
+    max_batch_size = 150
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
@@ -366,47 +368,23 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
         examples = {}
         for img_id, raw_predicted_mask in raw_predicted_masks.items():
 
-            raw_predicted_mask = raw_predicted_mask / n_models
             if postprocess:
+                mean_raw_predicted_mask = raw_predicted_mask / n_models
 
                 raw_predicted_border = raw_predicted_borders.get(img_id)
-                if len(np.unique(raw_predicted_mask)) > 1:
+                if raw_predicted_border is not None:
+                    mean_raw_predicted_border = raw_predicted_border / n_border_models
+                    indices = np.where(mean_raw_predicted_border > 0.5)
+                    mean_raw_predicted_mask[indices] = (raw_predicted_mask[indices] + n_border_models - raw_predicted_border[indices])/(n_border_models+n_models)
 
-                    thresh = filters.threshold_otsu(raw_predicted_mask)
-                    predicted_mask = (raw_predicted_mask > thresh).astype(np.uint8)
-                    if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
-                        predicted_mask = 1 - predicted_mask
-
-                    if raw_predicted_border is not None:
-                        raw_predicted_border = raw_predicted_border / n_border_models
-                        thresh = filters.threshold_otsu(raw_predicted_border)
-                        predicted_mask[raw_predicted_border > thresh] = 0
-
-                    predicted_mask = label(predicted_mask)
-
-                    '''
-                    
-                    regions = regionprops(predicted_mask)
-                    relabel = False
-
-                    for region in regions:
-                        if region.eccentricity > 0.95 and region.area > 1500:
-                            predicted_mask[predicted_mask == region.label] = 0
-                            relabel = True
-
-
-                    if relabel:
-                        predicted_mask, forward, inv = relabel_sequential(predicted_mask)
-                    '''
-
-
-
-                else:
-
-                    predicted_mask = label(raw_predicted_mask > 0.5)
+                raw_predicted_mask = mean_raw_predicted_mask
+                predicted_mask = (raw_predicted_mask > 0.5).astype(np.uint8)
+                if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
+                    predicted_mask = 1 - predicted_mask
+                predicted_mask = label(predicted_mask)
             else:
-
                 thresh = 0.5
+                raw_predicted_mask = raw_predicted_mask / n_models
                 predicted_mask = label(raw_predicted_mask > thresh)
 
 
