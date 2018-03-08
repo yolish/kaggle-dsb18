@@ -1,4 +1,4 @@
-import numpy as np
+import random
 IMG_ONLY_TRANSFORM = 1
 MASK_ONLY_TRANSFORM = 2
 JOINT_TRANSFORM = 3
@@ -25,7 +25,7 @@ class JointCompose(object):
             # check if to apply the transform, in case of a probabilistic one
             apply_transform = True
             if prob is not None: # probabilistic transform
-                if np.random.random() > prob:
+                if random.random() > prob:
                     apply_transform = False
 
             if apply_transform:
