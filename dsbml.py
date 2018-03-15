@@ -224,8 +224,8 @@ def train(dataset, transformation, n_epochs, batch_size,
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
     check_loss_change_freq = 3
-    min_loss_change = 0.025
-    batch_increase_delta = 4
+    min_loss_change = 0.01
+    batch_increase_delta = 2
     max_batch_size = 150
     prev_loss = None
     loss_change = 0.0
