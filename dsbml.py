@@ -2,7 +2,7 @@ from UNet import UNet
 import dsbutils
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import MultiStepLR
 from torch.autograd import Variable
 import numpy as np
 from torch.utils.data.dataloader import default_collate
@@ -225,13 +225,15 @@ def train(dataset, transformation, n_epochs, batch_size,
 
     check_loss_change_freq = 3
     min_loss_change = 0.01
-    batch_increase_delta = 2
-    max_batch_size = 150
+    batch_increase_delta = 1
+    max_batch_size = 30
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
+
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
+
         for i, sample_batched in enumerate(train_loader):
 
             # get the inputs

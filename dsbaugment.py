@@ -10,7 +10,7 @@ import random
 
 
 
-IMG_SIZE = 128
+IMG_SIZE = 256
 
 
 class TransformSpec:
