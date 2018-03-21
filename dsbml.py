@@ -2,16 +2,16 @@ from UNet import UNet
 import dsbutils
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import MultiStepLR
 from torch.autograd import Variable
 import numpy as np
 from torch.utils.data.dataloader import default_collate
 import dsbaugment
 from torch.utils.data import DataLoader
-from skimage import filters
 from skimage.measure import label, regionprops
 from collections import OrderedDict
+from torch.optim.lr_scheduler import MultiStepLR
 from skimage.segmentation import relabel_sequential
+from skimage import filters
 
 
 #region loss functions
@@ -35,6 +35,39 @@ def soft_dice_loss(inputs, targets, epsilon = 1):
 
         dl = 1 - (intersection_0+epsilon)/(union_0+epsilon) - (intersection_1+epsilon)/(union_1+epsilon)
         loss = loss + dl
+    return loss / batch_size
+
+
+def generailzed_dice_loss_with_contour(inputs, targets, weights=None):
+    batch_size = targets.size(0)
+    loss = 0.0
+
+    for i in xrange(batch_size):
+        prob = inputs[i]
+        ref = targets[i]
+
+        intersection_0 = ((1 - ref) * (1 - prob))
+        union_0 = ((1 - ref) + (1 - prob))
+
+        freq_0 = (1 - ref).sum()
+        w0 = 1 / (freq_0 * freq_0)
+
+        intersection_1 = (ref * prob)
+        union_1 = (ref + prob)
+        freq_1 = ref.sum()
+        w1 = 1 / (freq_1 * freq_1)
+
+
+        numer = (intersection_0 * w0 + intersection_1 * w1)
+        denom =  (w0 * union_0 + w1 * union_1)
+
+        contour_reg = 0.0
+        if weights is not None:
+            contour_reg = (weights[i] * numer).sum()/denom.sum()
+
+        gdl = 1 - 2 * (numer.sum()/denom.sum()) - 2*contour_reg
+
+        loss = loss + gdl
     return loss / batch_size
 
 
@@ -140,26 +173,31 @@ def calc_expected_iou(labelled_mask):
     expected_iou = calc_avg_precision_iou(pred_rles, true_rles)
     return expected_iou
 
-def try_add_weight_map(sample):
-    '''
-
-    when the Iou is low, it means that it's hard to label the binary mask, becuase cells are touching
-    so we want the borders  to have more weight that all the other pixels
-    :param sample:
-    :param w0:
-    :return:
-    '''
-    w0 = 1.0
-    expected_iou = sample.get('expected_iou')
+def try_add_weight_map(sample, use_iou = False):
     borders = sample.get('borders')
-    if expected_iou is not None and borders is not None:
-        if isinstance(borders, np.ndarray):
-            weight_map = borders.astype(np.float64)
-        else:
-            weight_map = borders.clone()
-        weight_map[weight_map >= 1.0] = 1.0 + w0*(1-expected_iou)
-        weight_map[weight_map < 1.0] = 1.0
-        sample['weight_map'] = weight_map
+    if use_iou:
+        #when the Iou is low, it means that it's hard to label the binary mask, becuase cells are touching
+        # so we want the borders  to have more weight than all the other pixels
+        w0 = 1.0
+        expected_iou = sample.get('expected_iou')
+        borders = sample.get('borders')
+        if expected_iou is not None and borders is not None:
+            if isinstance(borders, np.ndarray):
+                weight_map = borders.astype(np.float64)
+            else:
+                weight_map = borders.clone()
+            weight_map[weight_map >= 1.0] = 1.0 + w0 * (1 - expected_iou)
+            weight_map[weight_map < 1.0] = 1.0
+            sample['weight_map'] = weight_map
+
+    else:
+        if borders is not None:
+            sample['weight_map'] = borders
+
+
+
+
+
 
 #endregion
 
@@ -198,7 +236,7 @@ def train(dataset, transformation, n_epochs, batch_size,
         unet.cuda()
 
     # define the loss criterion and the optimizer
-    criterion = weighted_generalized_dice_loss
+    criterion = generailzed_dice_loss_with_contour#weighted_generalized_dice_loss
     if optimizer_type is None:
         optimizer_type = 'adam'
 
@@ -226,7 +264,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 1
-    max_batch_size = 30
+    max_batch_size = 20
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
@@ -301,6 +339,7 @@ def predict_masks(unet, dataset):
             img = Variable(img.cuda())
         else:
             img = Variable(img)
+        unet = unet.eval()
         predicted_mask = (unet(img)).data[0].cpu()
         # resize the mask and reverse the transformation
         img_id = sample.get('id')
