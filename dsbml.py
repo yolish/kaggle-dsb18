@@ -58,14 +58,13 @@ def generailzed_dice_loss_with_contour(inputs, targets, weights=None):
         w1 = 1 / (freq_1 * freq_1)
 
 
-        numer = (intersection_0 * w0 + intersection_1 * w1)
-        denom =  (w0 * union_0 + w1 * union_1)
-
         contour_reg = 0.0
+        ideal = 1.0
         if weights is not None:
-            contour_reg = (weights[i] * numer).sum()/denom.sum()
+            contour_reg = (w0*((weights[i]*intersection_0).sum()) + w1*((weights[i]*intersection_1).sum()))/ (w0*((weights[i]*union_0).sum()) + w1*((weights[i]*union_1).sum()))
+            ideal = 2.0
 
-        gdl = 1 - 2 * (numer.sum()/denom.sum()) - 2*contour_reg
+        gdl = ideal - 2 * ((intersection_0.sum()*w0 + intersection_1.sum()*w1)/(w0*union_0.sum()+w1*union_1.sum())) - 2*contour_reg
 
         loss = loss + gdl
     return loss / batch_size
