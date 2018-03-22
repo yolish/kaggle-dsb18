@@ -61,7 +61,7 @@ def generailzed_dice_loss_with_contour(inputs, targets, weights=None):
         contour_reg = 0.0
         ideal = 1.0
         if weights is not None:
-            contour_reg = (w0*((weights[i]*intersection_0).sum()) + w1*((weights[i]*intersection_1).sum()))/ (w0*((weights[i]*union_0).sum()) + w1*((weights[i]*union_1).sum()))
+            contour_reg = (((weights[i]*intersection_0).sum()) + ((weights[i]*intersection_1).sum()))/ (((weights[i]*union_0).sum()) + ((weights[i]*union_1).sum()))
             ideal = 2.0
 
         gdl = ideal - 2 * ((intersection_0.sum()*w0 + intersection_1.sum()*w1)/(w0*union_0.sum()+w1*union_1.sum())) - 2*contour_reg
@@ -191,7 +191,11 @@ def try_add_weight_map(sample, use_iou = False):
 
     else:
         if borders is not None:
-            sample['weight_map'] = borders
+            if isinstance(borders, np.ndarray):
+                weight_map = borders.astype(np.uint8)
+            else:
+                weight_map = borders.clone()
+            sample['weight_map'] = weight_map
 
 
 

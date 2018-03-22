@@ -12,7 +12,8 @@ class ConvRelu(nn.Module):
         self.operation = nn.Sequential(
             nn.Conv2d(n_in_channels, n_out_channels, kernel_size, padding=padding),
             nn.BatchNorm2d(n_out_channels),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=True)
+
         )
 
     def forward(self, conv_relu_input):
