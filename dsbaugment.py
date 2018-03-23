@@ -202,7 +202,7 @@ def to_binary_mask(labelled_mask, with_borders, use_borders_as_mask):
             mask[find_boundaries(labelled_mask, mode='outer')] = 0
 
     #borders = (labelled_mask > 0).astype(np.uint8) - mask  # borders of touching cells (if borders are marked)
-    borders = find_boundaries(labelled_mask, mode='thick')
+    borders = find_boundaries(labelled_mask, mode='outer')
     return mask.astype(np.uint8), borders.astype(np.uint8)
 
 
