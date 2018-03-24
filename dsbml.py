@@ -13,6 +13,8 @@ import itertools
 from torch.optim.lr_scheduler import MultiStepLR
 from skimage.segmentation import relabel_sequential
 from skimage import filters
+from skimage.segmentation import find_boundaries
+
 
 
 #region loss functions
@@ -425,14 +427,16 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                     # put the borders temporarily for labelling
                     raw_predicted_border = raw_predicted_border / n_border_models
                     predicted_border = (raw_predicted_border > 0.5).astype(np.uint8)
+                    mask_border = find_boundaries(predicted_mask, mode = 'outer')
 
-                    indices = np.where(predicted_border == 1)
+                    indices = np.nonzero(predicted_border-mask_border)
                     predicted_mask[indices] = 0
                     predicted_mask = label(predicted_mask)
                     row_max = predicted_mask.shape[0]-1
                     col_max = predicted_mask.shape[1]-1
 
-                    for index in indices:
+                    row_col_indices = np.transpose(indices)
+                    for index in row_col_indices:
                         my_label = 0
                         # get the indices around it and take the largest one to be the label
                         row_index = index[0]
@@ -440,11 +444,16 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                         range_row = np.unique((max(row_index-1, 0), row_index, min(row_index+1, row_max)))
                         range_col = np.unique((max(col_index - 1, 0), col_index, min(col_index + 1, col_max)))
                         combinations = itertools.product(range_row, range_col)
-                        for neighbor in combinations:
-                            if predicted_mask[neighbor] > my_label:
-                                my_label = predicted_mask[neighbor]
-                        predicted_border[index] = my_label
-                    predicted_mask[indices] = predicted_border[indices]
+                        for (neighbor_row_index, neighbor_col_index) in combinations:
+                            neighbor_label =  predicted_mask[neighbor_row_index, neighbor_col_index]
+                            if neighbor_label > my_label:
+                                my_label = neighbor_label
+                        predicted_border[row_index, col_index] = my_label
+                    for index in row_col_indices:
+                        row_index = index[0]
+                        col_index = index[1]
+                        predicted_mask[row_index, col_index] = predicted_border[row_index, col_index]
+
                 else:
                     predicted_mask = label(predicted_mask)
             else:
