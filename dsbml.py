@@ -424,7 +424,9 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                 if raw_predicted_border is not None:
                     # put the borders temporarily for labelling
                     raw_predicted_border = raw_predicted_border / n_border_models
-                    indices = np.where(raw_predicted_border > 0.5)
+                    predicted_border = (raw_predicted_border > 0.5).astype(np.uint8)
+
+                    indices = np.where(predicted_border == 1)
                     predicted_mask[indices] = 0
                     predicted_mask = label(predicted_mask)
                     row_max = predicted_mask.shape[0]-1
@@ -440,8 +442,9 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                         combinations = itertools.product(range_row, range_col)
                         for neighbor in combinations:
                             if predicted_mask[neighbor] > my_label:
-                                my_label = predicted_mask[my_label]
-                        predicted_mask[index] = my_label
+                                my_label = predicted_mask[neighbor]
+                        predicted_border[index] = my_label
+                    predicted_mask[indices] = predicted_border[indices]
                 else:
                     predicted_mask = label(predicted_mask)
             else:
