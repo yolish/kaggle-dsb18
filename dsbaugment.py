@@ -195,7 +195,7 @@ def reverse_test_transform(img, original_size):
 def to_binary_mask(labelled_mask, with_borders, use_borders_as_mask):
 
     if use_borders_as_mask:
-        mask = find_boundaries(labelled_mask, mode='outer')
+        mask = find_boundaries(labelled_mask, mode='inner')
     else:
         mask = (labelled_mask > 0)
         if with_borders:

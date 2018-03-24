@@ -9,6 +9,7 @@ import dsbaugment
 from torch.utils.data import DataLoader
 from skimage.measure import label, regionprops
 from collections import OrderedDict
+import itertools
 from torch.optim.lr_scheduler import MultiStepLR
 from skimage.segmentation import relabel_sequential
 from skimage import filters
@@ -63,8 +64,8 @@ def generailzed_dice_loss_with_contour(inputs, targets, weights=None):
             #contour_reg = (((weights[i]*intersection_0).sum()) + ((weights[i]*intersection_1).sum()))/ (((weights[i]*union_0).sum()) + ((weights[i]*union_1).sum()))
             contour_reg = (((weights[i]*intersection_0).sum()))/ (((weights[i]*union_0).sum()))
 
-        rev_concern = 0.25
-        gdl = 1 - (1-rev_concern) * (2 * ((intersection_0.sum()*w0 + intersection_1.sum()*w1)/(w0*union_0.sum()+w1*union_1.sum()))) - rev_concern*2*contour_reg
+        alpha = 0.25
+        gdl = 1 - alpha * (2 * ((intersection_0.sum()*w0 + intersection_1.sum()*w1)/(w0*union_0.sum()+w1*union_1.sum()))) - (1-alpha)*2*contour_reg
 
         loss = loss + gdl
     return loss / batch_size
@@ -239,7 +240,7 @@ def train(dataset, transformation, n_epochs, batch_size,
         unet.cuda()
 
     # define the loss criterion and the optimizer
-    criterion = generailzed_dice_loss_with_contour#weighted_generalized_dice_loss
+    criterion = weighted_generalized_dice_loss
     if optimizer_type is None:
         optimizer_type = 'adam'
 
@@ -267,7 +268,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 1
-    max_batch_size = 20
+    max_batch_size = 30
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
@@ -413,19 +414,36 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
         for img_id, raw_predicted_mask in raw_predicted_masks.items():
 
             if postprocess:
-                mean_raw_predicted_mask = raw_predicted_mask / n_models
-
-                raw_predicted_border = raw_predicted_borders.get(img_id)
-                if raw_predicted_border is not None:
-                    mean_raw_predicted_border = raw_predicted_border / n_border_models
-                    indices = np.where(mean_raw_predicted_border > 0.5)
-                    mean_raw_predicted_mask[indices] = (raw_predicted_mask[indices] + n_border_models - raw_predicted_border[indices])/(n_border_models+n_models)
-
-                raw_predicted_mask = mean_raw_predicted_mask
+                raw_predicted_mask = raw_predicted_mask / n_models
                 predicted_mask = (raw_predicted_mask > 0.5).astype(np.uint8)
                 if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                     predicted_mask = 1 - predicted_mask
-                predicted_mask = label(predicted_mask)
+
+                raw_predicted_border = raw_predicted_borders.get(img_id)
+                # if we have borders
+                if raw_predicted_border is not None:
+                    # put the borders temporarily for labelling
+                    raw_predicted_border = raw_predicted_border / n_border_models
+                    indices = np.where(raw_predicted_border > 0.5)
+                    predicted_mask[indices] = 0
+                    predicted_mask = label(predicted_mask)
+                    row_max = predicted_mask.shape[0]-1
+                    col_max = predicted_mask.shape[1]-1
+
+                    for index in indices:
+                        my_label = 0
+                        # get the indices around it and take the largest one to be the label
+                        row_index = index[0]
+                        col_index = index[1]
+                        range_row = np.unique((max(row_index-1, 0), row_index, min(row_index+1, row_max)))
+                        range_col = np.unique((max(col_index - 1, 0), col_index, min(col_index + 1, col_max)))
+                        combinations = itertools.product(range_row, range_col)
+                        for neighbor in combinations:
+                            if predicted_mask[neighbor] > my_label:
+                                my_label = predicted_mask[my_label]
+                        predicted_mask[index] = my_label
+                else:
+                    predicted_mask = label(predicted_mask)
             else:
                 thresh = 0.5
                 raw_predicted_mask = raw_predicted_mask / n_models
