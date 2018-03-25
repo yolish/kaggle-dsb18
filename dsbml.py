@@ -417,7 +417,8 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
 
             if postprocess:
                 raw_predicted_mask = raw_predicted_mask / n_models
-                predicted_mask = (raw_predicted_mask > 0.5).astype(np.uint8)
+                thresh = 0.5 #filters.threshold_otsu(raw_predicted_mask)
+                predicted_mask = (raw_predicted_mask > thresh).astype(np.uint8)
                 if np.sum(predicted_mask == 1) > np.sum(predicted_mask == 0):
                     predicted_mask = 1 - predicted_mask
 
@@ -426,10 +427,11 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                 if raw_predicted_border is not None:
                     # put the borders temporarily for labelling
                     raw_predicted_border = raw_predicted_border / n_border_models
-                    predicted_border = (raw_predicted_border > 0.5).astype(np.uint8)
+                    border_thresh = filters.threshold_otsu(raw_predicted_border)
+                    predicted_border = (raw_predicted_border > border_thresh).astype(np.uint8)
                     mask_border = find_boundaries(predicted_mask, mode = 'outer')
 
-                    indices = np.nonzero(predicted_border-mask_border)
+                    indices = np.nonzero((predicted_border-mask_border) > 0)
                     predicted_mask[indices] = 0
                     predicted_mask = label(predicted_mask)
                     row_max = predicted_mask.shape[0]-1
@@ -445,7 +447,7 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                         range_col = np.unique((max(col_index - 1, 0), col_index, min(col_index + 1, col_max)))
                         combinations = itertools.product(range_row, range_col)
                         for (neighbor_row_index, neighbor_col_index) in combinations:
-                            neighbor_label =  predicted_mask[neighbor_row_index, neighbor_col_index]
+                            neighbor_label = predicted_mask[neighbor_row_index, neighbor_col_index]
                             if neighbor_label > my_label:
                                 my_label = neighbor_label
                         predicted_border[row_index, col_index] = my_label
