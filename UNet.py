@@ -11,7 +11,6 @@ class ConvRelu(nn.Module):
         super(ConvRelu, self).__init__()
         self.operation = nn.Sequential(
             nn.Conv2d(n_in_channels, n_out_channels, kernel_size, padding=padding),
-            nn.Dropout2d(),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(n_out_channels)
         )
