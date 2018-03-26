@@ -270,7 +270,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     check_loss_change_freq = 3
     min_loss_change = 0.01
     batch_increase_delta = 1
-    max_batch_size = 30
+    max_batch_size = 26
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
