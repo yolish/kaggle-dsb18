@@ -78,6 +78,18 @@ if __name__ == "__main__":
 
     dsbutils.complete_action(action, start_time)
 
+    '''
+    iou = 0.0
+
+    for i in xrange(len(valid_dataset)):
+        sample = train_dataset[i]
+        mask = sample.get('labelled_mask')
+        iou = iou + dsbml.calc_expected_iou(mask)
+    print("max iou without borders: {}".format(iou/len(valid_dataset)))
+    sys.exit()
+    '''
+
+
     if sanity_basic:
         print("performing a basic sanity check")
         dsbutils.plot_imgs(train_dataset, 3, (22, 27))
@@ -171,6 +183,7 @@ if __name__ == "__main__":
             transformation = dsbaugment.transformations.get(transformation_name)
             optimizer = train_config.get('optimizer')
             hyperparam_search_config = train_config.get("hyperparam_search_config")
+            loss_criterion = train_config.get("criterion")
 
             if hyperparam_search_config:
                 # do search for lr and weight_decay (regularization)
@@ -219,7 +232,7 @@ if __name__ == "__main__":
                 action = "training a UNet on the full train dataset"
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
-                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer)
+                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer, loss_criterion)
                 dsbutils.complete_action(action, start_time)
 
             else: # train without validation set
@@ -227,7 +240,7 @@ if __name__ == "__main__":
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                   optimizer)
+                                   optimizer, loss_criterion)
                 dsbutils.complete_action(action, start_time)
 
 

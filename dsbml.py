@@ -73,6 +73,28 @@ def generailzed_dice_loss_with_contour(inputs, targets, weights=None):
     return loss / batch_size
 
 
+def tversky_loss(inputs, targets,  weights=None):
+    batch_size = targets.size(0)
+    loss = 0.0
+
+
+    for i in xrange(batch_size):
+        prob = inputs[i]
+        ref = targets[i]
+
+        beta = ref.sum()/float(len((ref.view(-1))))
+        alpha = 1.0-beta
+
+        tp =  (ref*prob).sum()
+        fp =  ((1-ref)*prob).sum()
+        fn =  (ref*(1-prob)).sum()
+        tversky = (tp)/(tp + alpha*fp+  beta*fn)
+        loss = loss + (1-tversky)
+    return loss/batch_size
+
+
+
+
 def weighted_generalized_dice_loss(inputs, targets, weights=None):
     batch_size = targets.size(0)
     loss = 0.0
@@ -234,15 +256,22 @@ def collate_selected(batch, selected_keys):
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
-                               init_weights, use_gpu, optimizer_type, verbose = True):
+                               init_weights, use_gpu, optimizer_type, loss_criterion, verbose = True):
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
+    unet = unet.train()
     if use_gpu:
         unet.cuda()
 
     # define the loss criterion and the optimizer
-    criterion = weighted_generalized_dice_loss
+    if loss_criterion is None:
+        loss_criterion = "weighted_generalized_dice_loss"
+    if loss_criterion == "tversky_loss":
+        criterion = tversky_loss
+    else:
+        criterion = weighted_generalized_dice_loss
+
     if optimizer_type is None:
         optimizer_type = 'adam'
 
@@ -268,7 +297,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
     check_loss_change_freq = 3
-    min_loss_change = 0.01
+    min_loss_change = 0.005
     batch_increase_delta = 1
     max_batch_size = 26
     prev_loss = None
@@ -338,6 +367,7 @@ def train(dataset, transformation, n_epochs, batch_size,
 
 def predict_masks(unet, dataset):
     raw_predicted_masks = OrderedDict()
+    unet = unet.eval()
     for sample in dataset:
         # apply the model to make predictions for the image
         img = default_collate([sample.get('img')])
@@ -345,7 +375,6 @@ def predict_masks(unet, dataset):
             img = Variable(img.cuda())
         else:
             img = Variable(img)
-        unet = unet.eval()
         predicted_mask = (unet(img)).data[0].cpu()
         # resize the mask and reverse the transformation
         img_id = sample.get('id')
