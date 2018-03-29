@@ -75,13 +75,19 @@ class UNet(nn.Module):
     def init_modules_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                #init weights to have approximate;y unit variance by drawing from a normal dist
+
+                #nn.init.xavier_normal(m.weight)
+
+                # init weights to have approximate;y unit variance by drawing from a normal dist
                 # with mean 0 and std sqrt(2/n), where n = filter size x n-incoming_channels
+
                 filter_size = m.kernel_size[0] * m.kernel_size[1]
                 n = filter_size * m.in_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
                 if m.bias is not None:
                     m.bias.data.zero_()
+
+
 
     def forward(self, input):
         # contracting path
