@@ -15,17 +15,18 @@
     "stage": "stage1"
   },
   "train": {
-    "batch_size": 4,
+   "batch_size": 4,
     "n_epochs": 300,
-    "lr": 0.00013,
-    "weight_decay": 0.00000035,
+    "lr": 0.003,
+    "weight_decay": 0.000000165,
     "optimizer":"adam",
     "init_weights": true,
     "weighted_loss": false,
     "use_gpu": true,
     "train_full": true,
     "transformation": "train_transform_jitter",
-     "save_model":true
+     "save_model":true,
+    "criterion":"tversky_loss"
   },
   "test":
   {
