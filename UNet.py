@@ -12,7 +12,7 @@ class ConvRelu(nn.Module):
         self.operation = nn.Sequential(
             nn.Conv2d(n_in_channels, n_out_channels, kernel_size, padding=padding),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(n_out_channels)
+            #nn.BatchNorm2d(n_out_channels)
         )
 
 

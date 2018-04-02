@@ -256,7 +256,7 @@ def collate_selected(batch, selected_keys):
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
-                               init_weights, use_gpu, optimizer_type, loss_criterion, verbose = True):
+                               init_weights, use_gpu, optimizer_type, loss_criterion, valid_dataset = None, verbose = True):
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
@@ -296,13 +296,16 @@ def train(dataset, transformation, n_epochs, batch_size,
     #https: // arxiv.org / pdf / 1711.00489.pdf dont decay the learning rate, increase batch size
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
-    check_loss_change_freq = 3
+    check_loss_change_freq = 3000
     min_loss_change = 0.005
     batch_increase_delta = 1
     max_batch_size = 26
     prev_loss = None
     loss_change = 0.0
     reached_max_batch_size = False
+    valid_iou = 0.0
+    reset_patience = 5
+    patience = 5
 
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
@@ -361,6 +364,21 @@ def train(dataset, transformation, n_epochs, batch_size,
                     print("increased batch size to {}".format(batch_size))
             prev_loss = loss.data[0]
             loss_change = 0.0
+        # early stopping
+        if valid_dataset is not None:
+            predictions, examples = test([unet], valid_dataset, False, postprocess=True, n_masks_to_collect=0)
+            mean_avg_precision_iou = evaluate(predictions, valid_dataset)
+            print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
+            unet = unet.train()
+            if mean_avg_precision_iou - valid_iou < 0.001:
+                patience = patience-1
+            else:
+                patience = reset_patience
+            valid_iou = mean_avg_precision_iou
+            if patience == 0:
+                break
+
+
     return unet
 
 
@@ -383,6 +401,8 @@ def predict_masks(unet, dataset):
         raw_predicted_masks[img_id] = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
 
     return raw_predicted_masks
+
+
 
 
 
@@ -506,5 +526,8 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                                     }
             i = i + 1
         return predictions, examples
+
+
+
 
 #endregion

@@ -92,7 +92,7 @@ class ElasticTransform(object):
     alpha: scaling facor - positive float giving the intensity of the transformation. Larger alphas require larger sigmas
     default values take from the paper
     '''
-    def __init__(self, sigma=2.0, alpha=17.0):
+    def __init__(self, sigma=1.5, alpha=34.0):
         '''
 
         :param sigma: positive floaf giving the elasticity of the transformation
@@ -220,7 +220,7 @@ transformations = {
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
     # color jittering (image only)
-    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM, prob=0.9),
+    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM),
     TransformSpec(Negative(), IMG_ONLY_TRANSFORM, prob=0.5),
     # turn into a PIL image - required to apply torch transforms (both image, mask and borders)
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
@@ -299,12 +299,17 @@ TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
 "toy_transform":JointCompose(
-    [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
-TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
-    TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS, prob=1.0),
-
+    [ # turn mask into 3D RGB-Like for PIL and tensor transformation
+    TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+    TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
+    #Elastic deformation on the numpy images
+    TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS),
+    # Convert borders and mask to 1 channel
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
+    # color jittering (image only)
+    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM),
+    TransformSpec(Negative(), IMG_ONLY_TRANSFORM, prob=0.5),
     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.0),
 

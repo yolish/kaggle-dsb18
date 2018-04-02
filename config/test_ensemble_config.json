@@ -14,9 +14,9 @@
   },
   "test": {
     "ensemble": [
-      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-24-13-29-13.pth"
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-04-02-10-38-13.pth"
     ],
-    "borders_model_filename": ["/home/yoli/kaggle_dsb18/src/predictions/model_2018-03-25-07-35-09.pth"],
+
     "eval": false,
     "test": true,
     "postprocess": true

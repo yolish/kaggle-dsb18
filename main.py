@@ -81,7 +81,7 @@ if __name__ == "__main__":
     '''
     iou = 0.0
 
-    for i in xrange(len(valid_dataset)):
+    for i in xrange(len(train_dataset)):
         sample = train_dataset[i]
         mask = sample.get('labelled_mask')
         iou = iou + dsbml.calc_expected_iou(mask)
@@ -184,6 +184,7 @@ if __name__ == "__main__":
             optimizer = train_config.get('optimizer')
             hyperparam_search_config = train_config.get("hyperparam_search_config")
             loss_criterion = train_config.get("criterion")
+            early_stop = train_config.get("early_stopping")
 
             if hyperparam_search_config:
                 # do search for lr and weight_decay (regularization)
@@ -219,7 +220,13 @@ if __name__ == "__main__":
                     #  lr: 0.00013
                     # weight decay: 3.47111926934e-07 (0.00000035)
                 ))
-
+            elif early_stop:
+                action = "training a UNet with early stopping"
+                start_time = dsbutils.start_action(action)
+                unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
+                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
+                                   optimizer, loss_criterion, valid_dataset=valid_dataset)
+                dsbutils.complete_action(action, start_time)
             elif train_full:
                 # train the model on the full train set (train + validation)
                 action = "creating the full train dataset"

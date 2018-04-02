@@ -17,8 +17,8 @@
   "train": {
    "batch_size": 4,
     "n_epochs": 300,
-    "lr": 0.003,
-    "weight_decay": 0.000000165,
+    "lr": 0.00013,
+    "weight_decay": 0.00000035,
     "optimizer":"adam",
     "init_weights": true,
     "weighted_loss": false,
@@ -30,7 +30,7 @@
   },
   "test":
   {
-    "eval":false,
+    "eval":true,
     "test":false,
     "postprocess":true
   }
