@@ -304,7 +304,7 @@ def train(dataset, transformation, n_epochs, batch_size,
     loss_change = 0.0
     reached_max_batch_size = False
     valid_iou = 0.0
-    reset_patience = 5
+    valid_iou_diff = 0.0
     patience = 5
 
     for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -370,13 +370,16 @@ def train(dataset, transformation, n_epochs, batch_size,
             mean_avg_precision_iou = evaluate(predictions, valid_dataset)
             print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
             unet = unet.train()
-            if mean_avg_precision_iou - valid_iou < 0.001:
-                patience = patience-1
+            if (epoch + 1) % patience == 0:
+                mean_iou_diff = valid_iou_diff/patience
+                print("mean IoU difference: {}".format(mean_iou_diff))
+                if mean_iou_diff < 0.001:
+                    break
+                valid_iou_diff = 0.0
             else:
-                patience = reset_patience
+                valid_iou_diff = valid_iou_diff + mean_avg_precision_iou - valid_iou
             valid_iou = mean_avg_precision_iou
-            if patience == 0:
-                break
+
 
 
     return unet
