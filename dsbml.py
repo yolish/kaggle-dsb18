@@ -14,6 +14,8 @@ from torch.optim.lr_scheduler import MultiStepLR
 from skimage.segmentation import relabel_sequential
 from skimage import filters
 from skimage.segmentation import find_boundaries
+import numpy as np
+import copy
 
 
 
@@ -256,7 +258,8 @@ def collate_selected(batch, selected_keys):
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
-                               init_weights, use_gpu, optimizer_type, loss_criterion, valid_dataset = None, verbose = True):
+                               init_weights, use_gpu, optimizer_type, loss_criterion, check_loss_change_freq = 100,
+                               min_loss_change = 0.0001, max_batch_size = 26, valid_dataset = None, verbose = True):
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
@@ -296,16 +299,17 @@ def train(dataset, transformation, n_epochs, batch_size,
     #https: // arxiv.org / pdf / 1711.00489.pdf dont decay the learning rate, increase batch size
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
-    check_loss_change_freq = 3000
-    min_loss_change = 0.005
     batch_increase_delta = 1
-    max_batch_size = 26
     prev_loss = None
     loss_change = 0.0
+    loss_diffs = []
     reached_max_batch_size = False
+
+    # for early stopping
     valid_iou = 0.0
-    valid_iou_diff = 0.0
+    iou_diffs = []
     patience = 5
+    max_iou = 0.0
 
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
@@ -340,9 +344,9 @@ def train(dataset, transformation, n_epochs, batch_size,
             if not reached_max_batch_size:
                 if prev_loss is None:
                     prev_loss = loss.data[0]
-                    loss_change = prev_loss
+                    loss_change = 1.0-prev_loss
                 else:
-                    loss_change = loss_change + prev_loss-loss.data[0]
+                    loss_change = prev_loss-loss.data[0]
                     prev_loss = loss.data[0]
 
             mean_epoch_loss = mean_epoch_loss + loss.data[0]
@@ -351,37 +355,47 @@ def train(dataset, transformation, n_epochs, batch_size,
 
         if verbose:
             print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss/(i+1)))
-        if not reached_max_batch_size and (epoch+1)%check_loss_change_freq== 0:
-            if loss_change/check_loss_change_freq < min_loss_change:
+        if not reached_max_batch_size:
+            if len(loss_diffs) < check_loss_change_freq:
+                loss_diffs.append(loss_change)
+            else:
+                if np.mean(loss_diffs) < min_loss_change:
+                    if batch_size + batch_increase_delta > max_batch_size:
+                        reached_max_batch_size = True
+                        print("reached max batch size")
+                    else:
+                        batch_size = batch_size + batch_increase_delta
+                        batch_sampler = torch.utils.data.sampler.BatchSampler(train_loader.sampler, batch_size, False)
+                        train_loader.batch_sampler = batch_sampler
+                        print("increased batch size to {}".format(batch_size))
+                loss_diffs.pop(0)
+                loss_diffs.append(loss_change)
 
-                if batch_size + batch_increase_delta > max_batch_size:
-                    reached_max_batch_size = True
-                    print("reached max batch size")
-                else:
-                    batch_size = batch_size + batch_increase_delta
-                    batch_sampler = torch.utils.data.sampler.BatchSampler(train_loader.sampler, batch_size, False)
-                    train_loader.batch_sampler = batch_sampler
-                    print("increased batch size to {}".format(batch_size))
-            prev_loss = loss.data[0]
-            loss_change = 0.0
+
         # early stopping
         if valid_dataset is not None:
             predictions, examples = test([unet], valid_dataset, False, postprocess=True, n_masks_to_collect=0)
             mean_avg_precision_iou = evaluate(predictions, valid_dataset)
-            print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
+
             unet = unet.train()
-            if (epoch + 1) % patience == 0:
-                mean_iou_diff = valid_iou_diff/patience
-                print("mean IoU difference: {}".format(mean_iou_diff))
-                if mean_iou_diff < 0.001:
-                    break
-                valid_iou_diff = 0.0
+
+            print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
+            if max_iou < mean_avg_precision_iou:
+                max_iou = mean_avg_precision_iou
+                best_model = copy.deepcopy(unet)
+
+            valid_iou_diff = mean_avg_precision_iou - valid_iou
+            if len(iou_diffs) < patience:
+                iou_diffs.append(valid_iou_diff)
             else:
-                valid_iou_diff = valid_iou_diff + mean_avg_precision_iou - valid_iou
+                mean_iou_diff = np.mean(iou_diffs)
+                print("mean IoU diff: {}".format(mean_iou_diff))
+                if mean_iou_diff < 0.001:
+                    unet = best_model # take the best model
+                    break
+                iou_diffs.pop(0)
+                iou_diffs.append(valid_iou_diff)
             valid_iou = mean_avg_precision_iou
-
-
-
     return unet
 
 
