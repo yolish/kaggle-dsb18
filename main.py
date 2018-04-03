@@ -185,6 +185,10 @@ if __name__ == "__main__":
             hyperparam_search_config = train_config.get("hyperparam_search_config")
             loss_criterion = train_config.get("criterion")
             early_stop = train_config.get("early_stopping")
+            min_loss_change = train_config.get("min_loss_change")
+
+            if min_loss_change is None:
+                min_loss_change = 0.0
 
             if hyperparam_search_config:
                 # do search for lr and weight_decay (regularization)
@@ -202,7 +206,7 @@ if __name__ == "__main__":
                     weight_decay = 10**random.uniform(weight_decay_log_range[0], weight_decay_log_range[1])
                     unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                        lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                       optimizer)
+                                       optimizer, min_loss_change=min_loss_change)
                     predictions, _ = dsbml.test([unet], valid_dataset, requires_loading, postprocess, n_masks_to_collect=0)
                     mean_avg_precision_iou = dsbml.evaluate(predictions, valid_dataset)
                     if mean_avg_precision_iou > best_iou:
@@ -223,9 +227,14 @@ if __name__ == "__main__":
             elif early_stop:
                 action = "training a UNet with early stopping"
                 start_time = dsbutils.start_action(action)
+                if use_borders_as_mask:
+                    gain_type = 'loss'
+                else:
+                    gain_type = 'iou'
+
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                   optimizer, loss_criterion, valid_dataset=valid_dataset)
+                                   optimizer, loss_criterion, gain_type=gain_type,valid_dataset=valid_dataset, min_loss_change=min_loss_change)
                 dsbutils.complete_action(action, start_time)
             elif train_full:
                 # train the model on the full train set (train + validation)
@@ -239,7 +248,8 @@ if __name__ == "__main__":
                 action = "training a UNet on the full train dataset"
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
-                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer, loss_criterion)
+                                   lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu, optimizer,
+                                   loss_criterion, min_loss_change=min_loss_change)
                 dsbutils.complete_action(action, start_time)
 
             else: # train without validation set
@@ -247,7 +257,7 @@ if __name__ == "__main__":
                 start_time = dsbutils.start_action(action)
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                   optimizer, loss_criterion)
+                                   optimizer, loss_criterion, min_loss_change=min_loss_change)
                 dsbutils.complete_action(action, start_time)
 
 

@@ -14,7 +14,7 @@
   },
   "test": {
     "ensemble": [
-      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-04-02-10-38-13.pth"
+      "/home/yoli/kaggle_dsb18/src/predictions/model_2018-04-02-21-32-35.pth"
     ],
 
     "eval": false,

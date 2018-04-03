@@ -258,8 +258,8 @@ def collate_selected(batch, selected_keys):
 # for train we do data augmentation as part of the transforms calls
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
-                               init_weights, use_gpu, optimizer_type, loss_criterion, check_loss_change_freq = 100,
-                               min_loss_change = 0.0001, max_batch_size = 26, valid_dataset = None, verbose = True):
+                               init_weights, use_gpu, optimizer_type, loss_criterion, gain_type = 'iou',
+                               min_loss_change=0.0, valid_dataset = None, verbose = True):
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
@@ -300,16 +300,17 @@ def train(dataset, transformation, n_epochs, batch_size,
     # when the loss is 'stuck' - increase the batch size by some delta, up to a max size << total dataset size
 
     batch_increase_delta = 1
+    check_loss_change_freq = 5
+    max_batch_size = 26
     prev_loss = None
-    loss_change = 0.0
     loss_diffs = []
     reached_max_batch_size = False
 
     # for early stopping
-    valid_iou = 0.0
-    iou_diffs = []
+    local_max_gain = -1.0
+    max_gain = -1.0
     patience = 5
-    max_iou = 0.0
+
 
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         mean_epoch_loss = 0.0
@@ -341,21 +342,23 @@ def train(dataset, transformation, n_epochs, batch_size,
 
             loss = criterion(outputs, masks, weights=weight_maps)
 
-            if not reached_max_batch_size:
-                if prev_loss is None:
-                    prev_loss = loss.data[0]
-                    loss_change = 1.0-prev_loss
-                else:
-                    loss_change = prev_loss-loss.data[0]
-                    prev_loss = loss.data[0]
+
 
             mean_epoch_loss = mean_epoch_loss + loss.data[0]
             loss.backward()
             optimizer.step()
 
+        mean_epoch_loss = mean_epoch_loss / (i + 1)
         if verbose:
-            print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss/(i+1)))
+            print("epoch {} / {} : mean loss is: {}".format(epoch+1, n_epochs, mean_epoch_loss))
         if not reached_max_batch_size:
+            if prev_loss is None:
+                prev_loss = mean_epoch_loss
+                loss_change = 1.0 - prev_loss
+            else:
+                loss_change = prev_loss - mean_epoch_loss
+                prev_loss = mean_epoch_loss
+
             if len(loss_diffs) < check_loss_change_freq:
                 loss_diffs.append(loss_change)
             else:
@@ -374,28 +377,30 @@ def train(dataset, transformation, n_epochs, batch_size,
 
         # early stopping
         if valid_dataset is not None:
-            predictions, examples = test([unet], valid_dataset, False, postprocess=True, n_masks_to_collect=0)
-            mean_avg_precision_iou = evaluate(predictions, valid_dataset)
+            if gain_type == 'iou':
+                predictions, examples = test([unet], valid_dataset, False, postprocess=True, n_masks_to_collect=0)
+                gain = evaluate(predictions, valid_dataset)
+
+            else:
+                gain = eval_with_criterion(unet, valid_dataset, criterion, use_gpu)
+
 
             unet = unet.train()
 
-            print("IoU for validation dataset: {}".format(mean_avg_precision_iou))
-            if max_iou < mean_avg_precision_iou:
-                max_iou = mean_avg_precision_iou
+            print("gain for validation dataset: {}".format(gain))
+            if max_gain < gain:
+                max_gain = gain
                 best_model = copy.deepcopy(unet)
 
-            valid_iou_diff = mean_avg_precision_iou - valid_iou
-            if len(iou_diffs) < patience:
-                iou_diffs.append(valid_iou_diff)
-            else:
-                mean_iou_diff = np.mean(iou_diffs)
-                print("mean IoU diff: {}".format(mean_iou_diff))
-                if mean_iou_diff < 0.001:
-                    unet = best_model # take the best model
-                    break
-                iou_diffs.pop(0)
-                iou_diffs.append(valid_iou_diff)
-            valid_iou = mean_avg_precision_iou
+            if (epoch+1)%patience == 0:
+                if (epoch+1) > patience:
+                    print("local max gain: {} max gain: {}".format(local_max_gain, max_gain))
+                    if max_gain - local_max_gain < 0.001:
+                        unet = best_model  # take the best model
+                        break
+                local_max_gain = max_gain
+
+
     return unet
 
 
@@ -414,13 +419,33 @@ def predict_masks(unet, dataset):
         # resize the mask and reverse the transformation
         img_id = sample.get('id')
         original_size = sample.get('size')
-        # get the predicted mask (raw, i.e. peobabilities)
+        # get the predicted mask (raw, i.e. probabilities)
         raw_predicted_masks[img_id] = dsbaugment.reverse_test_transform(predicted_mask, original_size) # predicted mask is now a numpy image again
 
     return raw_predicted_masks
 
+def eval_with_criterion(unet, valid_dataset, criterion, use_gpu):
+    unet = unet.eval()
+    data_loader = DataLoader(valid_dataset, batch_size=1,
+                             shuffle=False, num_workers=0, collate_fn=batch_collate)
+    gain = 0.0
+    for i, sample_batched in enumerate(data_loader):
 
+        # get the inputs
+        imgs = sample_batched.get('img')
+        masks = sample_batched.get('binary_mask')
 
+        if use_gpu:
+            imgs, masks = Variable(imgs).cuda(), Variable(masks, requires_grad=False).cuda()
+        else:
+            imgs, masks = Variable(imgs), Variable(masks, requires_grad=False)
+
+        # forward + backward + optimize
+        outputs = unet(imgs)
+
+        loss = criterion(outputs, masks)
+        gain = gain + -1*(loss.data[0]+1)
+    return gain/len(valid_dataset)
 
 
 def evaluate(predictions, dataset, examples=None):

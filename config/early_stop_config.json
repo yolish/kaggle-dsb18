@@ -26,6 +26,11 @@
     "transformation": "train_transform",
      "save_model":true,
     "early_stopping":true
+  },
+  "test": {
+    "eval": false,
+    "test": true,
+    "postprocess": true
   }
 
 }
