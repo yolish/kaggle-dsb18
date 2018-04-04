@@ -306,10 +306,11 @@ def train(dataset, transformation, n_epochs, batch_size,
     loss_diffs = []
     reached_max_batch_size = False
 
+
     # for early stopping
     local_max_gain = -1.0
     max_gain = -1.0
-    patience = 5
+    patience = 10
 
 
     for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -425,6 +426,7 @@ def predict_masks(unet, dataset):
     return raw_predicted_masks
 
 def eval_with_criterion(unet, valid_dataset, criterion, use_gpu):
+    valid_dataset.transform = dsbaugment.transformations.get("test_transform")
     unet = unet.eval()
     data_loader = DataLoader(valid_dataset, batch_size=1,
                              shuffle=False, num_workers=0, collate_fn=batch_collate)
