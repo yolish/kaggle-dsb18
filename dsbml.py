@@ -446,7 +446,7 @@ def eval_with_criterion(unet, valid_dataset, criterion, use_gpu):
         outputs = unet(imgs)
 
         loss = criterion(outputs, masks)
-        gain = gain + -1*(loss.data[0]+1)
+        gain = gain + -1*(loss.data[0]-1)
     return gain/len(valid_dataset)
 
 
