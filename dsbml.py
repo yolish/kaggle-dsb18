@@ -467,7 +467,7 @@ def combine_models(predicted_mask, predicted_mask_with_border, is_mask_with_bord
             range_col = np.unique((max(col_index - 1, 0), col_index, min(col_index + 1, col_max)))
             combinations = itertools.product(range_row, range_col)
             for (neighbor_row_index, neighbor_col_index) in combinations:
-                neighbor_label = predicted_mask[neighbor_row_index, neighbor_col_index]
+                neighbor_label = combined_mask[neighbor_row_index, neighbor_col_index]
                 if neighbor_label > my_label:
                     my_label = neighbor_label
                     predicted_mask_with_border[row_index, col_index] = my_label
