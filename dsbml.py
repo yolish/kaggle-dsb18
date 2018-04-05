@@ -450,8 +450,38 @@ def eval_with_criterion(unet, valid_dataset, criterion, use_gpu):
         gain = gain + -1*(loss.data[0]-1)
     return gain/len(valid_dataset)
 
-def combine_models(predicted_mask, predicted_border):
-    mask_border = find_boundaries(predicted_mask, mode='outer').astype(np.uint8)
+
+def combine_models(predicted_mask, predicted_mask_with_border, is_mask_with_border_model):
+    if is_mask_with_border_model:
+        combined_mask = label(predicted_mask_with_border)
+        indices = np.nonzero(predicted_mask - predicted_mask_with_border > 0)
+        row_col_indices = np.transpose(indices)
+        row_max = predicted_mask.shape[0] - 1
+        col_max = predicted_mask.shape[1] - 1
+        for index in row_col_indices:
+            my_label = 0
+            # get the indices around it and take the largest one to be the label
+            row_index = index[0]
+            col_index = index[1]
+            range_row = np.unique((max(row_index - 1, 0), row_index, min(row_index + 1, row_max)))
+            range_col = np.unique((max(col_index - 1, 0), col_index, min(col_index + 1, col_max)))
+            combinations = itertools.product(range_row, range_col)
+            for (neighbor_row_index, neighbor_col_index) in combinations:
+                neighbor_label = predicted_mask[neighbor_row_index, neighbor_col_index]
+                if neighbor_label > my_label:
+                    my_label = neighbor_label
+                    predicted_mask_with_border[row_index, col_index] = my_label
+        for index in row_col_indices:
+            row_index = index[0]
+            col_index = index[1]
+            combined_mask[row_index, col_index] = predicted_mask_with_border[row_index, col_index]
+    else: # borders only
+        combined_mask = combine_mask_and_borders(predicted_mask, predicted_mask_with_border)
+    return combined_mask
+
+
+def combine_mask_and_borders(predicted_mask, predicted_border):
+    mask_border = find_boundaries(label(predicted_mask), mode='outer').astype(np.uint8)
     indices = np.nonzero((predicted_border - mask_border > 0))
     predicted_mask[indices] = 0
     predicted_mask = label(predicted_mask)
@@ -493,7 +523,7 @@ def evaluate(predictions, dataset, examples=None):
     mean_avg_precision_iou = sum_avg_precision_iou / len(predictions.keys())
     return mean_avg_precision_iou
 
-def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, borders_model_filename=None, mask_with_border_model = True):
+def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, borders_model_filename=None, is_mask_with_border_model = True):
         dataset.transform = dsbaugment.transformations.get("test_transform")
         raw_predicted_masks = OrderedDict()
         raw_predicted_borders = OrderedDict()
@@ -552,9 +582,7 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                     raw_predicted_border = raw_predicted_border / n_border_models
                     border_thresh = 0.5#filters.threshold_otsu(raw_predicted_border)
                     predicted_border = (raw_predicted_border > border_thresh).astype(np.uint8)
-                    if mask_with_border_model:
-                        predicted_border = find_boundaries(label(predicted_border), mode = 'outer').astype(np.uint8)
-                    predicted_mask = combine_models(predicted_mask, predicted_border)
+                    predicted_mask = combine_models(predicted_mask, predicted_border, is_mask_with_border_model)
                 else:
                     predicted_mask = label(predicted_mask)
             else:
