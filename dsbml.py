@@ -259,7 +259,7 @@ def collate_selected(batch, selected_keys):
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
                                init_weights, use_gpu, optimizer_type, loss_criterion, gain_type = 'iou',
-                               min_loss_change=0.0, valid_dataset = None, verbose = True):
+                               min_loss_change=0.0, patience = 15, valid_dataset = None, verbose = True):
 
     # create the model
     unet = UNet(3,1, init_weights=init_weights)
@@ -310,7 +310,6 @@ def train(dataset, transformation, n_epochs, batch_size,
     # for early stopping
     local_max_gain = -1.0
     max_gain = -1.0
-    patience = 10
 
 
     for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -455,36 +454,17 @@ def combine_models(predicted_mask, predicted_mask_with_border, is_mask_with_bord
     if is_mask_with_border_model:
         combined_mask = label(predicted_mask_with_border)
         indices = np.nonzero(predicted_mask - predicted_mask_with_border > 0)
-        row_col_indices = np.transpose(indices)
-        row_max = predicted_mask.shape[0] - 1
-        col_max = predicted_mask.shape[1] - 1
-        for index in row_col_indices:
-            my_label = 0
-            # get the indices around it and take the largest one to be the label
-            row_index = index[0]
-            col_index = index[1]
-            range_row = np.unique((max(row_index - 1, 0), row_index, min(row_index + 1, row_max)))
-            range_col = np.unique((max(col_index - 1, 0), col_index, min(col_index + 1, col_max)))
-            combinations = itertools.product(range_row, range_col)
-            for (neighbor_row_index, neighbor_col_index) in combinations:
-                neighbor_label = combined_mask[neighbor_row_index, neighbor_col_index]
-                if neighbor_label > my_label:
-                    my_label = neighbor_label
-                    predicted_mask_with_border[row_index, col_index] = my_label
-        for index in row_col_indices:
-            row_index = index[0]
-            col_index = index[1]
-            combined_mask[row_index, col_index] = predicted_mask_with_border[row_index, col_index]
+        combined_mask = combine_mask_and_borders(combined_mask, predicted_mask_with_border, indices)
     else: # borders only
-        combined_mask = combine_mask_and_borders(predicted_mask, predicted_mask_with_border)
+        mask_border = find_boundaries(label(predicted_mask), mode='outer').astype(np.uint8)
+        indices = np.nonzero((predicted_mask_with_border - mask_border > 0))
+        predicted_mask[indices] = 0
+        predicted_mask = label(predicted_mask)
+        combined_mask = combine_mask_and_borders(predicted_mask, predicted_mask_with_border, indices)
     return combined_mask
 
 
 def combine_mask_and_borders(predicted_mask, predicted_border):
-    mask_border = find_boundaries(label(predicted_mask), mode='outer').astype(np.uint8)
-    indices = np.nonzero((predicted_border - mask_border > 0))
-    predicted_mask[indices] = 0
-    predicted_mask = label(predicted_mask)
     row_max = predicted_mask.shape[0] - 1
     col_max = predicted_mask.shape[1] - 1
 
