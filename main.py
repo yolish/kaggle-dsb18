@@ -186,9 +186,12 @@ if __name__ == "__main__":
             loss_criterion = train_config.get("criterion")
             early_stop = train_config.get("early_stopping")
             min_loss_change = train_config.get("min_loss_change")
+            patience = train_config.get("patience")
 
             if min_loss_change is None:
                 min_loss_change = 0.0
+            if patience is None:
+                patience = 15
 
             if hyperparam_search_config:
                 # do search for lr and weight_decay (regularization)
@@ -234,7 +237,7 @@ if __name__ == "__main__":
 
                 unet = dsbml.train(train_dataset, transformation, n_epochs, batch_size,
                                    lr, weight_decay, momentum, weighted_loss, init_weights, use_gpu,
-                                   optimizer, loss_criterion, gain_type=gain_type,valid_dataset=valid_dataset, min_loss_change=min_loss_change)
+                                   optimizer, loss_criterion, patience=patience, gain_type=gain_type,valid_dataset=valid_dataset, min_loss_change=min_loss_change)
                 dsbutils.complete_action(action, start_time)
             elif train_full:
                 # train the model on the full train set (train + validation)
