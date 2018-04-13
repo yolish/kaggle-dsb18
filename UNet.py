@@ -6,14 +6,13 @@ import math
 # based on the paper: 'U-Net convolutional networks for biomedical image segmentation'
 
 class ConvRelu(nn.Module):
-    def __init__(self, n_in_channels, n_out_channels, kernel_size, padding):
+    def __init__(self, n_in_channels, n_out_channels, kernel_size, padding, dilation):
         # in the original paper this padding=0
         super(ConvRelu, self).__init__()
         self.operation = nn.Sequential(
-            nn.Conv2d(n_in_channels, n_out_channels, kernel_size, padding=padding),
-            nn.ReLU(inplace=True),
-            #nn.BatchNorm2d(n_out_channels)
-        )
+            nn.Conv2d(n_in_channels, n_out_channels, kernel_size, padding=padding, dilation=dilation),
+            nn.ReLU(inplace=True)
+    )
 
 
 
@@ -21,11 +20,11 @@ class ConvRelu(nn.Module):
         return self.operation(conv_relu_input)
 
 class ConvReluSeq(nn.Module):
-    def __init__(self, n_in_channels, n_out_channels, n_components=2, kernel_size=3, padding=1):
+    def __init__(self, n_in_channels, n_out_channels, n_components=2, kernel_size=3, padding=1, dilation=1):
         super(ConvReluSeq, self).__init__()
-        components = [ConvRelu(n_in_channels, n_out_channels, kernel_size, padding)]
+        components = [ConvRelu(n_in_channels, n_out_channels, kernel_size, padding, dilation)]
         for i in xrange(1,n_components):
-            components.append(ConvRelu(n_out_channels, n_out_channels, kernel_size, padding))
+            components.append(ConvRelu(n_out_channels, n_out_channels, kernel_size, padding, dilation))
         self.operation = nn.Sequential(*components)
 
     def forward(self, conv_relu_input):
@@ -50,8 +49,7 @@ class UNet(nn.Module):
     def __init__(self, n_in_channels, n_classes, init_weights=True):
         #operations for the contracting path
         super(UNet, self).__init__()
-        self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64, kernel_size=3,
-                                                    n_components=2, padding=1)# a sequence of 3X3 conv                                                                                         # followed by Relu (default params)
+        self.conv_relu_seq_contract_1 = ConvReluSeq(n_in_channels, 64)# a sequence of 3X3 conv                                                                                         # followed by Relu (default params)
         self.conv_relu_seq_contract_2 = ConvReluSeq(64, 128)
         self.conv_relu_seq_contract_3 = ConvReluSeq(128, 256)
         self.conv_relu_seq_contract_4 = ConvReluSeq(256, 512)
@@ -59,7 +57,7 @@ class UNet(nn.Module):
         self.max_pool = nn.MaxPool2d(2)  # stride = 2
 
         # operations for the expansive path
-        self.up_conv_with_copy_crop_1 = UpConvWithCopyCrop(1024, 512, kernel_size=2, stride=2)
+        self.up_conv_with_copy_crop_1 = UpConvWithCopyCrop(1024, 512)
         self.conv_relu_seq_expan_1= ConvReluSeq(1024, 512)
         self.up_conv_with_copy_crop_2 = UpConvWithCopyCrop(512, 256)
         self.conv_relu_seq_expan_2 = ConvReluSeq(512, 256)
@@ -67,7 +65,7 @@ class UNet(nn.Module):
         self.conv_relu_seq_expan_3 = ConvReluSeq(256, 128)
         self.up_conv_with_copy_crop_4 = UpConvWithCopyCrop(128, 64)
         self.conv_relu_seq_expan_4 = ConvReluSeq(128, 64)
-        self.out_conv = nn.Conv2d(64, n_classes, 3, padding=1)
+        self.out_conv = nn.Conv2d(64, n_classes, 3, padding=1, dilation=1)
 
         if init_weights:
             self.init_modules_weights()

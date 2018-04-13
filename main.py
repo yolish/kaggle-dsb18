@@ -67,6 +67,8 @@ if __name__ == "__main__":
     labels_file = os.path.join(dsb_data_path, '{}_train_labels.csv'.format(stage))
     train_dataset = NucleiDataset('train', imgs_df=imgs_details, labels_file=labels_file,
                                   add_borders_to_mask=add_borders_to_mask, use_borders_as_mask=use_borders_as_mask)
+
+
     if validation_dataset_filename is not None:
         valid_dataset = train_dataset.split(validation_frac, 'validation', filename= validation_dataset_filename)
     else:
@@ -92,11 +94,10 @@ if __name__ == "__main__":
 
     if sanity_basic:
         print("performing a basic sanity check")
-        dsbutils.plot_imgs(train_dataset, 3, (22, 27))
-        n_imgs = 3
-        selected_idx = random.sample(range(len(train_dataset)), n_imgs)
-        for img_idx in selected_idx:
-            sample = train_dataset[img_idx]
+        dsbutils.plot_imgs(train_dataset, 5, (22, 27))
+        indices = range(5)
+        for idx in indices:
+            sample = train_dataset[idx]
             img_id = sample.get('id')
             img = sample.get('img')
             mask = sample.get('labelled_mask')
@@ -106,14 +107,14 @@ if __name__ == "__main__":
             print("Avg precision IoU for img {} (using labelled): {}".format(img_id, dsbml.calc_avg_precision_iou(rles_from_mask,rles_from_df)))
             print("Expected Avg precision IoU for img {}: {}".format(img_id, sample.get('expected_iou')))
 
+
     if sanity_augment:
         import matplotlib.pyplot as plt
         print("performing an augmentation sanity check")
-        n_imgs = 2
-        selected_idx = random.sample(range(len(train_dataset)), n_imgs)
-        for img_idx in selected_idx:
+        n_imgs = 4
+        my_transform = dsbaugment.transformations.get("toy_transform")
+        for i, sample in enumerate(train_dataset):
             train_dataset.transform = None
-            sample = train_dataset[img_idx]
             img_id = sample.get('id')
             img = sample.get('img')
             mask = sample.get('binary_mask')
@@ -126,13 +127,12 @@ if __name__ == "__main__":
             plt.imshow(mask, cmap='gist_gray')
             plt.subplot(233)
             plt.imshow(borders, cmap = 'gist_gray')
-
-            train_dataset.transform = dsbaugment.transformations.get("toy_transform")
-            sample = train_dataset[img_idx]
+            sample = my_transform(sample)
             img_id = sample.get('id')
             img = sample.get('img')
             mask = sample.get('binary_mask')
             borders = sample.get('borders')
+
             print("image and binary mask after transformation. Image shape: {}, mask shape: {}".format(img.shape,
                                                                                                         mask.shape))
             plt.subplot(234)
@@ -142,6 +142,9 @@ if __name__ == "__main__":
             plt.subplot(236)
             plt.imshow(dsbaugment.PIL_torch_to_numpy(borders), cmap='gist_gray')
             plt.show()
+
+            if i > n_imgs:
+                break
 
 
     evaluate = False
@@ -191,7 +194,7 @@ if __name__ == "__main__":
             if min_loss_change is None:
                 min_loss_change = 0.0
             if patience is None:
-                patience = 15
+                patience = 10
 
             if hyperparam_search_config:
                 # do search for lr and weight_decay (regularization)

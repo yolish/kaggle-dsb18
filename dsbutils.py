@@ -39,6 +39,7 @@ def collect_dataset(imgs_df, dataset_type, labels_file = None):
     dataset_details = imgs_df.query(query)
     dataset_rows = []
     group_cols = ['Stage', 'ImageId']
+
     for n_group, n_rows in dataset_details.groupby(group_cols):
         img_record = {col_name: col_value for col_name, col_value in zip(group_cols, n_group)}
         img_paths = n_rows.query('ImageType == "images"')['path'].values.tolist()
@@ -46,9 +47,11 @@ def collect_dataset(imgs_df, dataset_type, labels_file = None):
         img_record['ImagePath'] = n_rows.query('ImageType == "images"')['path'].values.tolist()[0]
         if labels_df is not None:
             img_record['MaskPaths'] = n_rows.query('ImageType == "masks"')['path'].values.tolist()
+
             img_record['EncodedPixels'] = labels_df[labels_df['ImageId'] == img_record.get('ImageId')]['EncodedPixels'].values.tolist()
         img_record['Shape'] = None
         img_record['Channels'] = None
+
         dataset_rows += [img_record]
     dataset = pd.DataFrame(dataset_rows)
     return dataset
@@ -69,9 +72,10 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
         n_cols = 1
     fig, axes = plt.subplots(n_imgs, n_cols, figsize=fig_size)
     norm = mpl.colors.Normalize(vmin = 1.0, vmax = 5.0)
-    selected_idx = random.sample(range(len(dataset)), n_imgs)
-    for i, img_idx in enumerate(selected_idx):
-        sample = dataset[img_idx]
+    indices = range(n_imgs)
+
+    for i, idx in enumerate(indices):
+        sample = dataset[idx]
         subplot = axes[i][0]
         subplot.imshow(sample.get('img'))
         subplot.axis('off')
@@ -99,6 +103,8 @@ def plot_imgs(dataset, n_imgs, fig_size, plot_mask=True):
             subplot.axis('off')
             if i == 0:
                 subplot.set_title('Weight Map')
+
+
     plt.show()
 
 def plot_predicted_masks(examples, fig_size, plot_true_mask=True):
@@ -178,16 +184,18 @@ def calc_rle(arr):
         prev = index
     return rle
 
+def combine_rles(rles, h, w):
+    mask = np.zeros(h * w, dtype=np.uint8)
+    for i, rle in enumerate(rles):
+        rld = decode_rle(rle)
+        mask[rld] = i+1
+    return mask.reshape((h, w)).T
+
 def decode_rle(rle):
-    # decode a given run length encoding into a single array
-    rld = []
-    i = 0
-    while i < len(rle):
-        start_index = rle[i]
-        length = rle[i+1]
-        rld.extend(np.arange(start_index, start_index+length))
-        i = i + 2
-    return rld
+    indices = []
+    for idx, cnt in zip(rle[0::2], rle[1::2]):
+        indices.extend(list(range(idx - 1, idx + cnt - 1)))  # RLE is 1-based index
+    return indices
 
 def get_rles_from_df(imgs_df, img_id):
     rles = (imgs_df[imgs_df['ImageId'] == img_id]['EncodedPixels']).values[0]

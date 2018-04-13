@@ -5,8 +5,14 @@ import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 from skimage.segmentation import mark_boundaries, find_boundaries
-from skimage.exposure import adjust_gamma, rescale_intensity
+from skimage.exposure import adjust_gamma, rescale_intensity, equalize_hist, equalize_adapthist
+from skimage.util import img_as_float
+from skimage.segmentation import quickshift, felzenszwalb, slic
 import random
+from skimage.color import rgb2lab, rgb2grey
+from skimage import filters
+import cv2
+
 
 
 
@@ -18,6 +24,7 @@ class TransformSpec:
         self.transform = transform
         self.transform_type = transform_type
         self.prob = prob
+
 
 
 class Flip(object):
@@ -46,11 +53,59 @@ class Flip(object):
 # aside: transforms are written as callable classes instead of simple functions so that parameters
 #  of the transform need not be passed everytime it is called. For this, we just need to implement
 # __call__ method and if required, __init__ method.
+class Segment(object):
+    def __call__(self, img):
+        # img is a numpy rgb image
+        grey_img = rgb2grey(img)
+        t1 = filters.threshold_minimum(grey_img)
+        t2 = filters.threshold_yen(grey_img)
+
+        img1 = mark_boundaries(img, (grey_img > t1), color=(1,0,0))
+        img1 = mark_boundaries(img1, (grey_img > t2), color=(1,0,0))
+        img2 = mark_boundaries(img, grey_img < 0)
+        img = ((img1+img2)/2)
+
+        #img = mark_boundaries(img, quickshift(img_as_float(img), kernel_size =5, max_dist = 10, ratio = 1.0))
+
+        #img = mark_boundaries(img, slic(img_as_float(img), n_segments=10))
+        #fimg = rgb2grey(img)
+        #t = filters.threshold_otsu(fimg)
+        #img = mark_boundaries(img, (fimg > t).astype(np.uint8), color=(1,0,0))
+        #img  = mark_boundaries(img, (fimg - filters.threshold_niblack(fimg)< 0).astype(np.uint8), color=(1,0,0))
+
+        #img_gray = rgb2grey(img)
+        #img_gray = img[:, :, 1]
+        # morphological opening (size tuned on training data)
+        #circle7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        #img_open = cv2.morphologyEx(img_gray, cv2.MORPH_OPEN, circle7)
+        # Otsu thresholding
+        #img_th = cv2.threshold(img_open, 0, 255, cv2.THRESH_OTSU)[1]
+        # Invert the image in case the objects of interest are in the dark side
+        #if (np.sum(img_th == 255) > np.sum(img_th == 0)):
+        #    img_th = cv2.bitwise_not(img_th)
+        # second morphological opening (on binary image this time)
+        #bin_open = cv2.morphologyEx(img_th, cv2.MORPH_OPEN, circle7)
+        # connected components
+        #img = mark_boundaries(img,cv2.connectedComponents(bin_open)[1], color=(1,0,0))
+
+
+        return (img*255).astype(np.uint8)
+
+
+
 class JitterBrightness(object):
     def __call__(self, img):
         # img is a numpy rgb image
         gamma = random.random() + 0.3
         return adjust_gamma(img, gamma)
+
+
+
+class Rescale(object):
+    def __call__(self, img):
+        # img is a numpy rgb image
+        return equalize_adapthist(img)
+
 
 class Negative(object):
     def __call__(self, img):
@@ -263,6 +318,25 @@ transformations = {
      TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
      TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
 ),
+"train_transform_segment":JointCompose(
+    [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
+    TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
+    TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
+    TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
+    TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM, prob=0.9),
+     TransformSpec(Segment(), IMG_ONLY_TRANSFORM),
+    TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
+    TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.2),
+    TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
+                  IMG_ONLY_TRANSFORM),
+    TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
+                  BORDER_ONLY_TRANSFORM),
+    TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
+                  MASK_ONLY_TRANSFORM),
+    TransformSpec(transforms.ToTensor(),JOINT_TRANSFORM_WITH_BORDERS),
+     TransformSpec(Binarize(), BORDER_ONLY_TRANSFORM),
+     TransformSpec(Binarize(), MASK_ONLY_TRANSFORM)]
+),
 "train_transform_jitter":JointCompose(
     [TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
     TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
@@ -287,7 +361,8 @@ transformations = {
 TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
-    TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
+     TransformSpec(Segment(), IMG_ONLY_TRANSFORM),
+     TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),
                   IMG_ONLY_TRANSFORM),
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.NEAREST),
@@ -301,16 +376,22 @@ TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
 "toy_transform":JointCompose(
     [ # turn mask into 3D RGB-Like for PIL and tensor transformation
     TransformSpec(To3D(), MASK_ONLY_TRANSFORM),
-    TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
-    #Elastic deformation on the numpy images
-    TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS),
+        TransformSpec(To3D(), BORDER_ONLY_TRANSFORM),
+
+        #Elastic deformation on the numpy images
+    #TransformSpec(ElasticTransform(), RANDOM_JOINT_TRANSFORM_WITH_BORDERS),
     # Convert borders and mask to 1 channel
     TransformSpec(To1Ch(), BORDER_ONLY_TRANSFORM),
     TransformSpec(To1Ch(), MASK_ONLY_TRANSFORM),
-    # color jittering (image only)
+    #TransformSpec(Rescale(), IMG_ONLY_TRANSFORM),
+
+        # color jittering (image only)
+
     TransformSpec(JitterBrightness(), IMG_ONLY_TRANSFORM),
-    TransformSpec(Negative(), IMG_ONLY_TRANSFORM, prob=0.5),
-    TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
+    #TransformSpec(Negative(), IMG_ONLY_TRANSFORM),
+        TransformSpec(Segment(), IMG_ONLY_TRANSFORM),
+
+        TransformSpec(transforms.ToPILImage(), JOINT_TRANSFORM_WITH_BORDERS),
     TransformSpec(Flip(1), JOINT_TRANSFORM_WITH_BORDERS, prob=0.0),
 
     TransformSpec(transforms.Resize((IMG_SIZE,IMG_SIZE),interpolation=Image.BILINEAR),

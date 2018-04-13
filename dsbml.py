@@ -204,9 +204,10 @@ def try_add_weight_map(sample, use_iou = True):
     if use_iou:
         #when the Iou is low, it means that it's hard to label the binary mask, becuase cells are touching
         # so we want the borders  to have more weight than all the other pixels
-        w0 = 1.0
+
         expected_iou = sample.get('expected_iou')
         borders = sample.get('borders')
+        w0 = 1.0
         if expected_iou is not None and borders is not None:
             if isinstance(borders, np.ndarray):
                 weight_map = borders.astype(np.float64)
@@ -259,10 +260,10 @@ def collate_selected(batch, selected_keys):
 def train(dataset, transformation, n_epochs, batch_size,
                                lr, weight_decay, momentum, weighted_loss,
                                init_weights, use_gpu, optimizer_type, loss_criterion, gain_type = 'iou',
-                               min_loss_change=0.0, patience = 15, valid_dataset = None, verbose = True):
+                               min_loss_change=0.0, patience = 10, valid_dataset = None, verbose = True):
 
     # create the model
-    unet = UNet(3,1, init_weights=init_weights)
+    unet = UNet(3, 1, init_weights)
     unet = unet.train()
     if use_gpu:
         unet.cuda()
@@ -464,7 +465,7 @@ def combine_models(predicted_mask, predicted_mask_with_border, is_mask_with_bord
     return combined_mask
 
 
-def combine_mask_and_borders(predicted_mask, predicted_border):
+def combine_mask_and_borders(predicted_mask, predicted_border, indices):
     row_max = predicted_mask.shape[0] - 1
     col_max = predicted_mask.shape[1] - 1
 
@@ -563,6 +564,7 @@ def test(models, dataset, requires_loading, postprocess, n_masks_to_collect=15, 
                     border_thresh = 0.5#filters.threshold_otsu(raw_predicted_border)
                     predicted_border = (raw_predicted_border > border_thresh).astype(np.uint8)
                     predicted_mask = combine_models(predicted_mask, predicted_border, is_mask_with_border_model)
+
                 else:
                     predicted_mask = label(predicted_mask)
             else:

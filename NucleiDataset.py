@@ -1,7 +1,7 @@
 import pandas as pd
 import random
 from skimage.io import imread
-from dsbutils import collect_dataset
+from dsbutils import collect_dataset, combine_rles
 from dsbaugment import to_binary_mask
 from torch.utils.data import Dataset
 from dsbml import calc_expected_iou, try_add_weight_map
@@ -43,15 +43,19 @@ class NucleiDataset(Dataset):
         sample = {'id':img_id, 'img':img, 'size':img.shape}
         if self.type != 'test':
             mask_paths = img_record['MaskPaths']
-            mask = self.combine_masks(mask_paths)
+            if len(mask_paths) > 0:
+                mask = self.combine_masks(mask_paths)
+            else:
+                h = img.shape[0]
+                w = img.shape[1]
+                rles = img_record['EncodedPixels']
+                mask = combine_rles(rles, h, w)
             sample['labelled_mask'] = mask # only used for evaluation and plotting
             binary_mask, borders = to_binary_mask(mask, self.add_borders_to_mask, self.use_borders_as_mask)
             sample['binary_mask'] = binary_mask
             sample['borders'] = borders
             if self.type == 'train':
                 sample['expected_iou'] = calc_expected_iou(mask)
-
-
         if self.transform is not None:
             sample = self.transform(sample)
 
@@ -72,6 +76,7 @@ class NucleiDataset(Dataset):
             remaining_idx = [idx for idx in xrange(self.__len__()) if idx not in sampled_idx]
             split_out_dataset = self.dataset.iloc[sampled_idx]
             self.dataset = self.dataset.iloc[remaining_idx]
+
         return NucleiDataset(type, dataset=split_out_dataset, transform = transform, add_borders_to_mask=self.add_borders_to_mask)
 
     def combine_masks(self, masks_paths):
